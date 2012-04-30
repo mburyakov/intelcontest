@@ -1,0 +1,9 @@
+<component name="ProjectRunConfigurationManager">
+  <configuration default="false" name="cpp" type="CppRunConfigurationType" factoryName="Cpp" executable="$PROJECT_DIR$/run" parameters="24 16 refseq.txt input.txt" workingDir="$PROJECT_DIR$">
+    <RunnerSettings RunnerId="CppDebugRunner" />
+    <RunnerSettings RunnerId="CppRunner" />
+    <ConfigurationWrapper RunnerId="CppDebugRunner" />
+    <ConfigurationWrapper RunnerId="CppRunner" />
+    <method />
+  </configuration>
+</component>
