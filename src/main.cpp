@@ -28,7 +28,7 @@ pair<string,string> getSequence(ifstream& s){
 	return make_pair(name,sequence);
 }
 
-int main(int argc, char* argv[]){
+int bruteforce(int argc, char* argv[]){
 
 	// first command line argument : number of worker threads to use
 	// not used in this program at this time
@@ -115,4 +115,8 @@ int main(int argc, char* argv[]){
 	}
     //cout << "There is debug";
 	return 0;
+}
+
+int main(int argc, char* argv[]) {
+
 }
