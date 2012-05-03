@@ -21,6 +21,7 @@ LDLIBS =
 #LDLIBS = -ltbb -ltbbmalloc
 
 EXECUTABLE = run
+ARGS = 24 16 refseq.txt input.txt
 
 TEAM_ID = 19e8fda99f85c066c1cc5e7dcee5f86f # put your 32chars team id here and you will be able to submit your program from command line using "make submit"
 
@@ -34,6 +35,9 @@ release: $(OBJS)
 
 obj/%.o: src/%.cpp
 	$(COMPILER) $(FLAGS) -o $@ -c $<
+
+run: all
+	./$(EXECUTABLE) $(ARGS)
 
 
 zip: dist-clean

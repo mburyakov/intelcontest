@@ -116,6 +116,59 @@ int bruteforce(int argc, char* argv[]){
 	return 0;
 }
 
-int main(int argc, char* argv[]) {
 
+//reads A -> 00. C -> 01, T -> 10, G -> 11
+//input:  16 ascii letters
+//output: 32 bit
+//TODO:bug - all bytes are in inverse order (for example, ACTGAAAA... -> ...00011100100)
+void readDataBlock(unsigned long letters[], unsigned int* dest) {
+    *dest = 0;
+    for (int i=0;i<2;i++) {
+        unsigned long tmp  = ((letters[i] & 0x0606060606060606l) >> 1);
+        tmp = tmp | (tmp >> 6);
+        tmp = tmp | (tmp >> 12);
+        tmp = tmp & 0x000000ff000000ffl;
+        tmp = tmp | (tmp >> 24);
+        tmp = tmp & 0x000000000000ffffl;
+        *dest = *dest | (tmp << (i*16));
+    }
+}
+
+void testReadDataBlock() {
+    unsigned int dest;
+    char input[17] = "AAAAAAAAACTGAAAA";
+    readDataBlock((unsigned long *) &input,&dest);
+	cout << dest << endl;
+}
+
+int main(int argc, char* argv[]) {
+    //return bruteforce(argc, argv);
+
+
+    // first command line argument : number of worker threads to use
+	// not used in this program at this time
+
+	// first command line argument : window size
+
+	size_t minMatchLength = atol(argv[2]);
+
+	// second command line argument : reference sequence file
+	ifstream refSeqFile(argv[3],ios::in);
+	pair<string,string> ref = getSequence(refSeqFile);
+	string refSeqName = ref.first;
+	string refSeq = ref.second;
+
+	// following command line arguments : other files containing sequences
+	// result is stored in an associative array ordered by title
+	map<string,string> otherSequences;
+	for(int i=4; i<argc; i++){ // iterate over command arguments
+		ifstream seqFile(argv[i],ios::in);
+		while(!seqFile.eof()){
+			pair<string,string> other = getSequence(seqFile);
+			otherSequences[other.first] = other.second;
+		}
+	}
+
+    testReadDataBlock();
+	return 0;
 }
