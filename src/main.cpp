@@ -113,6 +113,5 @@ int main(int argc, char* argv[]){
 			delete[] L[i];
 		delete[] L;
 	}
-    //cout << "There is debug";
 	return 0;
 }
