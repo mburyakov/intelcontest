@@ -16,7 +16,8 @@ COMPILER ?= $(GCC_PATH)g++
 FLAGS ?= -std=c++0x -O3 -Wall $(GCC_SUPPFLAGS)
 
 LDFLAGS ?= -g
-LDLIBS = 
+LDLIBS = -lippiem64t -lippsem64t -lippcoreem64t -liomp5 -lpthread -lm
+INCLUDEPATHS = -I/home/mburyakov/bin/intel/composer_xe_2011_sp1.10.319/ipp/include/ -L/home/mburyakov/bin/intel/composer_xe_2011_sp1.10.319.ipp/lib/intel64/
 #example if using Intel� Threading Building Blocks :
 #LDLIBS = -ltbb -ltbbmalloc
 
@@ -31,10 +32,10 @@ OBJS=$(SRCS:src/%.cpp=obj/%.o)
 all: release
 
 release: $(OBJS)
-	$(COMPILER) $(LDFLAGS) -o $(EXECUTABLE) $(OBJS) $(LDLIBS) 
+	$(COMPILER) $(LDFLAGS)  -o $(EXECUTABLE) $(OBJS) $(INCLUDEPATHS) $(LDLIBS)
 
 obj/%.o: src/%.cpp
-	$(COMPILER) $(FLAGS) -o $@ -c $<
+	$(COMPILER) $(FLAGS) -o $@ -c $< $(INCLUDEPATHS)
 
 run: all
 	./$(EXECUTABLE) $(ARGS)

@@ -4,8 +4,8 @@
 #include <cmath>
 #include <assert.h>
 #include <stdlib.h>
-#include "/home/mburyakov/bin/intel/ipp/include/ipp.h"
-#include "/home/mburyakov/bin/intel/ipp/include/ipps.h"
+#include <ipp.h>
+//#include "/home/mburyakov/bin/intel/ipp/include/ipps.h"
 
 using namespace std;
 
@@ -25,12 +25,12 @@ class CyclicHash {
     size_t charsInWord;
     size_t charSpace; // pow(2,(charLen*charLen))
 
-    const basechartype tmp[];
-    const basechartype tmp1[];
-    const basechartype tmp2[];
-    const basechartype tmp3[];
-    const basechartype tmp4[];
-    const basechartype accum[];
+    basechartype *tmp;
+    basechartype *tmp1;
+    basechartype *tmp2;
+    basechartype *tmp3;
+    basechartype *tmp4;
+    basechartype *accum;
 
     //unsigned char charPermute[];
 
@@ -40,12 +40,12 @@ class CyclicHash {
             this->charLen = charLen;
             assert(wordLen%charLen==0);
             assert(charLen%baseCharLen==0);
-            assert(charLen>=sizeof(hasnanstype));
+            assert(charLen>=sizeof(hashanstype));
             this->charsInWord = wordLen/charLen;
             this->baseCharsInWord = wordLen/baseCharLen;
             this->baseCharsInChar = charLen/baseCharLen;
             this->charsInWord = wordLen/charLen;
-            charSpace == 1<<(charLen*8);
+            charSpace = 1<<(charLen*8);
             tmp = ippsMalloc_16u(baseCharsInChar+1);
             tmp1 = ippsMalloc_16u(baseCharsInChar+1);
             tmp2 = ippsMalloc_16u(baseCharsInChar+1);
@@ -59,15 +59,15 @@ class CyclicHash {
             //}
         }
 
-        inline static void cyclicShiftChar(basechartype const src[],basechartype dest[],size_t i) {
+        inline void cyclicShiftChar(basechartype const src[],basechartype dest[],size_t i) {
             ippsCopy_16s((Ipp16s *)src, (Ipp16s *)tmp1, baseCharsInChar);
             ippsCopy_16s((Ipp16s *)src, (Ipp16s *)tmp2, baseCharsInChar);
             ippsLShiftC_16s_I(i,(Ipp16s *)tmp1,baseCharsInChar);
             ippsRShiftC_16u_I(16-i,tmp2,baseCharsInChar);
-            ippsOr_8u((Ipp8u *)tmp1,(Ipp8u *)tmp2,(Ipp8u *)dest,CharLen);
+            ippsOr_8u((Ipp8u *)tmp1,(Ipp8u *)tmp2,(Ipp8u *)dest,charLen);
         }
 
-        inline static void cyclicShiftChar(basechartype const src[],basechartype dest[],size_t i,size_t shift) {
+        inline void cyclicShiftChar(basechartype const src[],basechartype dest[],size_t i,size_t shift) {
             ippsCopy_16s((Ipp16s *)src, (Ipp16s *)tmp1, baseCharsInChar+1);
             ippsCopy_16s((Ipp16s *)src, (Ipp16s *)tmp2, baseCharsInChar+1);
             if (shift+i < 16) {
@@ -75,43 +75,47 @@ class CyclicHash {
                 ippsRShiftC_16u_I(16-i-shift,tmp2,baseCharsInChar);
                 ippsCopy_16s((Ipp16s *)tmp2+1, (Ipp16s *)tmp3, baseCharsInChar);
                 Ipp16u mask = ((1<<shift)-1)<<i;
-                ippsAndC_16u_I(mask,tmp3,baseCharsInChar)  //TODO: use avx function
+                ippsAndC_16u_I(mask,tmp3,baseCharsInChar);  //TODO: use avx function
                 mask = ~mask;
-                ippsAndC_16u_I(mask,tmp2,baseCharsInChar)  //TODO: use avx function
-                ippsOr_8u((Ipp8u *)tmp1,(Ipp8u *)tmp2,(Ipp8u *)dest,CharLen);
-                ippsOr_8u_I((Ipp8u *)tmp3,(Ipp8u *)dest,CharLen);  //TODO: use avx function
+                ippsAndC_16u_I(mask,tmp2,baseCharsInChar);  //TODO: use avx function
+                ippsOr_8u((Ipp8u *)tmp1,(Ipp8u *)tmp2,(Ipp8u *)dest,charLen);
+                ippsOr_8u_I((Ipp8u *)tmp3,(Ipp8u *)dest,charLen);  //TODO: use avx function
             } else {
-                mask = (1<<i)-1;
+                Ipp16u mask = (1<<i)-1;
                 ippsLShiftC_16s_I(i+shift-16,(Ipp16s *)tmp1,baseCharsInChar);
-                ippsAndC_16u_I(mask,tmp1,baseCharsInChar)  //TODO: use avx function
+                ippsAndC_16u_I(mask,tmp1,baseCharsInChar);  //TODO: use avx function
                 ippsRShiftC_16u_I(32-i-shift,tmp2,baseCharsInChar);
                 ippsCopy_16s((Ipp16s *)tmp2+1, (Ipp16s *)tmp3, baseCharsInChar);
-                ippsOr_8u((Ipp8u *)tmp3,(Ipp8u *)tmp2,(Ipp8u *)dest,CharLen);
+                ippsOr_8u((Ipp8u *)tmp3,(Ipp8u *)tmp2,(Ipp8u *)dest,charLen);
                 ippsCopy_16s((Ipp16s *)tmp1+1, (Ipp16s *)tmp3, baseCharsInChar);
                 mask = ~mask;
-                ippsAndC_16u_I(mask,tmp3,baseCharsInChar)  //TODO: use avx function
-                ippsOr_8u_I((Ipp8u *)tmp3,(Ipp8u *)dest,CharLen); //TODO: use avx function
+                ippsAndC_16u_I(mask,tmp3,baseCharsInChar);  //TODO: use avx function
+                ippsOr_8u_I((Ipp8u *)tmp3,(Ipp8u *)dest,charLen); //TODO: use avx function
             }
         }
 
-        inline static void deShiftChar(basechartype const src[],basechartype dest[],size_t shift) {
+        inline void deShiftChar(basechartype const src[],basechartype dest[],size_t shift) {
             ippsCopy_16s((Ipp16s *)src, (Ipp16s *)tmp1, baseCharsInChar+1);
             ippsCopy_16s((Ipp16s *)src, (Ipp16s *)tmp2, baseCharsInChar+1);
             ippsLShiftC_16s_I(shift,(Ipp16s *)tmp1,baseCharsInChar);
             ippsRShiftC_16u_I(16-shift,tmp2,baseCharsInChar);
-            ippsOr_8u((Ipp8u *)tmp1,(Ipp8u *)tmp2,(Ipp8u *)dest,CharLen);
+            ippsOr_8u((Ipp8u *)tmp1,(Ipp8u *)tmp2,(Ipp8u *)dest,charLen);
         }
 
 
         hashanstype singleHash(basechartype const src[]) {
             //cyclic shifting
             ippsZero_16s((Ipp16s *)accum,baseCharsInChar);
-            for (size_t i=0, size_t ibcc=0; i<charsInWord; i++, ibcc+=baseCharsInChar) {
-                // TODO: some random permutation
-                cyclicShiftChar(src+ibcc,tmp,i);
-                ippsXor_16u_I(tmp,accum,baseCharsInChar); //TODO: use avx function
+            {
+                size_t ibcc;
+                size_t i;
+                for ((i=0), ibcc=0; i<charsInWord; i++, ibcc+=baseCharsInChar) {
+                    // TODO: some random permutation
+                    cyclicShiftChar(src+ibcc,tmp,i);
+                    ippsXor_16u_I(tmp,accum,baseCharsInChar); //TODO: use avx function
+                }
             }
-            //TODO:test and calc hash
+            return collapseChar(accum);
         }
 
         hashanstype collapseChar(basechartype const src[]) {
@@ -121,28 +125,31 @@ class CyclicHash {
         hashanstype singleHash(basechartype const src[], size_t shift) {
             //cyclic shifting
             ippsZero_16s((Ipp16s *)accum,baseCharsInChar);
-            for (size_t i=0, size_t ibcc=0; i<charsInWord; i++, ibcc+=baseCharsInChar) {
-                // TODO: some random permutation
-                cyclicShiftChar(src+ibcc,tmp,i,shift);
-                ippsXor_16u_I(tmp,accum,baseCharsInChar); //TODO: use avx function
+            {
+                size_t ibcc;
+                size_t i;
+                for ((i=0), ibcc=0; i<charsInWord; i++, ibcc+=baseCharsInChar) {
+                    // TODO: some random permutation
+                    cyclicShiftChar(src+ibcc,tmp,i,shift);
+                    ippsXor_16u_I(tmp,accum,baseCharsInChar); //TODO: use avx function
+                }
             }
             return collapseChar(accum);
-            //TODO:test and calc hash
         }
 
         void moveRight(hashanstype &prev, basechartype const src[]) {
             // TODO: some random permutation
             cyclicShiftChar(src,tmp,charsInWord);
-            ippXor_16u_I(src+baseCharsInWord, tmp, baseCharsInChar); //TODO: use avx function
-            prev ^= collapse(tmp);
+            ippsXor_16u_I(src+baseCharsInWord, tmp, baseCharsInChar); //TODO: use avx function
+            prev ^= collapseChar(tmp);
         }
 
         void moveRight(hashanstype &prev, basechartype const src[], size_t shift) {
             // TODO: some random permutation
             cyclicShiftChar(src,tmp,charsInWord,shift);
             deShiftChar(src+baseCharsInWord,accum,shift);
-            ippXor_16u_I(accum, tmp, baseCharsInChar); //TODO: use avx function
-            prev ^= collapse(tmp);
+            ippsXor_16u_I(accum, tmp, baseCharsInChar); //TODO: use avx function
+            prev ^= collapseChar(tmp);
         }
 
 
