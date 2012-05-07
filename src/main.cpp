@@ -3,6 +3,8 @@
 #include <fstream>
 #include <map>
 #include <cstdlib>
+#include "/home/mburyakov/bin/intel/ipp/include/ipp.h"
+#include "../include/cyclichash.h"
 
 using namespace std;
 
@@ -116,17 +118,18 @@ int bruteforce(int argc, char* argv[]){
 	return 0;
 }
 
+#define hashKernel 2147483647
+
 
 //reads A -> 00. C -> 01, T -> 10, G -> 11
 //input:  16 ascii letters
 //output: 32 bit
-//TODO:bug - all bytes are in inverse order (for example, ACTGAAAA... -> ...00011100100)
 void readDataBlock(unsigned long letters[], unsigned int* dest) {
     *dest = 0;
     for (int i=0;i<2;i++) {
-        unsigned long tmp  = ((letters[i] & 0x0606060606060606l) >> 1);
-        tmp = tmp | (tmp >> 6);
-        tmp = tmp | (tmp >> 12);
+        unsigned long tmp  = ((letters[i] & 0x0606060606060606l) << 5);
+        tmp = tmp | (tmp >> 10);
+        tmp = tmp | (tmp >> 20);
         tmp = tmp & 0x000000ff000000ffl;
         tmp = tmp | (tmp >> 24);
         tmp = tmp & 0x000000000000ffffl;
@@ -134,25 +137,47 @@ void readDataBlock(unsigned long letters[], unsigned int* dest) {
     }
 }
 
+/*unsigned long calcSingleHash(unsigned long const data[], size_t len, size_t shift) {
+    unsigned long accum = 0;
+    for (size_t i=0;i<len/8;i++) {
+        accum *= hashKernel;
+        accum += (data[i]);
+    }
+    return accum;
+} */
+
+/*unsigned long calcSingleAlignedHash(unsigned long const data[], size_t len) {
+    unsigned long accum = 0;
+    for (size_t i=0;i<len/8;i++) {
+        accum *= hashKernel;
+        accum += (data[i]);
+    }
+    return accum;
+} */
+
 void testReadDataBlock() {
     unsigned int dest;
-    char input[17] = "AAAAAAAAACTGAAAA";
+    char input[17] = "AAAAAAAAAAAAACTG";
     readDataBlock((unsigned long *) &input,&dest);
 	cout << dest << endl;
 }
 
+/* unsigned long * initHashKernelPows(size_t hashSize) {
+    unsigned long *ans = new unsigned long[hashSize/8];
+    unsigned long kpow = 1;
+    for (size_t i=0;i<hashSize/8;i++) {
+        ans[i] = kpow;
+        kpow *= hashKernel;
+    }
+    return ans;
+}  */
+
 int main(int argc, char* argv[]) {
+
     //return bruteforce(argc, argv);
+    size_t numerOfThreads = atol(argv[1]);
+	size_t minMatchCharLen = atol(argv[2]);
 
-
-    // first command line argument : number of worker threads to use
-	// not used in this program at this time
-
-	// first command line argument : window size
-
-	size_t minMatchLength = atol(argv[2]);
-
-	// second command line argument : reference sequence file
 	ifstream refSeqFile(argv[3],ios::in);
 	pair<string,string> ref = getSequence(refSeqFile);
 	string refSeqName = ref.first;
@@ -169,6 +194,42 @@ int main(int argc, char* argv[]) {
 		}
 	}
 
-    testReadDataBlock();
+	//char const* refCharSeq = refSeq.c_str();
+	//size_t refCharLen = refSeq.length();
+
+	//TODO: remove following 3 lines
+	char const* refCharSeq = "AAAAAAAAAAAAACTGAAAAAAAAAAAAACTGAAAAAAAAAAAAACTGAAAAAAAAAAAAACTGAAAAAAAAAAAAACTGAAAAAAAAAAAAACTGAAAAAAAAAAAAACTGAAAAAAAAAAAAACTG";
+	size_t refCharLen = 128;
+	minMatchCharLen = 64; //TODO: if it is less then use other algorithm
+    size_t minMatchBinLen = minMatchCharLen/4;
+
+    size_t refBinLen = (refCharLen+127)/128*32;
+    char *refBinSeq = new char[refBinLen];
+    for (size_t i=0; i+16<=refCharLen; i+=16) {
+        readDataBlock((unsigned long  *)(refCharSeq+i),(unsigned  *)(refBinSeq+i/4));
+        cout << *((unsigned int *) (refBinSeq+i/4)) << endl;
+    }
+
+    size_t hashLen = minMatchBinLen/16*8;
+    cout << "hashlen = " << hashLen << endl;
+
+    CyclicHash hasher(hashLen, hashLen);
+
+    unsigned int h0;
+    h0 = hasher.singleHash(refBinSeq);
+    cout << "hash[0] = " << h0 << endl;
+    cout << "hash[8] = " << hasher.singleHash(refBinSeq+8) << endl;
+    hasher.moveRight(h0,refBinSeq);
+    cout << "hash[0+8] = " << h0 << endl;
+
+    /*unsigned long *hashKernelPows = initHashKernelPows(hashSize);
+
+	for (int i=0;i+hashSize<=refBinLen;i+=hashSize) {
+	    cout << "i = " << (unsigned long const *)(refBinSeq+i) << endl;
+        cout << calcSingleAlignedHash((unsigned long const *)(refBinSeq+i),hashSize) << endl;
+	} */
+
+    //testReadDataBlock();
+    cout << endl << endl;
 	return 0;
 }
