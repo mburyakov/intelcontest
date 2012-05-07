@@ -200,7 +200,7 @@ int main(int argc, char* argv[]) {
 	//TODO: remove following 3 lines
 	char const* refCharSeq = "AAAAAAAAAAAAACTGAAAAAAAAAAAAACTGAAAAAAAAAAAAACTGAAAAAAAAAAAAACTGAAAAAAAAAAAAACTGAAAAAAAAAAAAACTGAAAAAAAAAAAAACTGAAAAAAAAAAAAACTG";
 	size_t refCharLen = 128;
-	minMatchCharLen = 64; //TODO: if it is less then use other algorithm
+	minMatchCharLen = 32; //TODO: if it is less than 32 then use other algorithm
     size_t minMatchBinLen = minMatchCharLen/4;
 
     size_t refBinLen = (refCharLen+127)/128*32;
@@ -210,7 +210,7 @@ int main(int argc, char* argv[]) {
         cout << *((unsigned int *) (refBinSeq+i/4)) << endl;
     }
 
-    size_t hashLen = minMatchBinLen/16*8;
+    size_t hashLen = minMatchBinLen/8*4;
     cout << "hashlen = " << hashLen << endl;
 
     CyclicHash hasher(hashLen, hashLen);
@@ -218,9 +218,9 @@ int main(int argc, char* argv[]) {
     unsigned int h0;
     h0 = hasher.singleHash(refBinSeq);
     cout << "hash[0] = " << h0 << endl;
-    cout << "hash[8] = " << hasher.singleHash(refBinSeq+8) << endl;
+    cout << "hash[4] = " << hasher.singleHash(refBinSeq+4) << endl;
     hasher.moveRight(h0,refBinSeq);
-    cout << "hash[0+8] = " << h0 << endl;
+    cout << "hash[0+4] = " << h0 << endl;
 
     /*unsigned long *hashKernelPows = initHashKernelPows(hashSize);
 
