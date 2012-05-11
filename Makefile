@@ -16,8 +16,8 @@ COMPILER ?= $(GCC_PATH)g++
 FLAGS ?= -std=c++0x -O3 -Wall $(GCC_SUPPFLAGS)
 
 LDFLAGS ?= -g
-LDLIBS = -lippiem64t -lippsem64t -lippcoreem64t -liomp5 -lpthread -lm
-INCLUDEPATHS = -I/home/mburyakov/bin/intel/composer_xe_2011_sp1.10.319/ipp/include/ -L/home/mburyakov/bin/intel/composer_xe_2011_sp1.10.319.ipp/lib/intel64/
+LDLIBS =  -lipps_l -lippcore_l
+INCLUDEPATHS = -I/home/mburyakov/bin/intel/composer_xe_2011_sp1.10.319/ipp/include/ -L/home/mburyakov/bin/intel/composer_xe_2011_sp1.10.319/ipp/lib/intel64
 #example if using Intel� Threading Building Blocks :
 #LDLIBS = -ltbb -ltbbmalloc
 
