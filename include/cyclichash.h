@@ -4,6 +4,7 @@
 #include <cmath>
 #include <assert.h>
 #include <stdlib.h>
+#include <assert.h>
 #include <ipp.h>
 //#include "/home/mburyakov/bin/intel/ipp/include/ipps.h"
 
@@ -22,6 +23,8 @@ class CyclicHash {
     size_t charLen;
     size_t baseCharsInWord;
     size_t baseCharsInChar;
+    size_t baseCharsInAns;
+    size_t ansLen;
     size_t charsInWord;
     size_t charSpace; // pow(2,(charLen*charLen))
 
@@ -44,6 +47,10 @@ class CyclicHash {
             this->charsInWord = wordLen/charLen;
             this->baseCharsInWord = wordLen/baseCharLen;
             this->baseCharsInChar = charLen/baseCharLen;
+            this->ansLen = sizeof(hashanstype);
+            assert(ansLen%baseCharLen==0);
+            this->baseCharsInAns = ansLen/baseCharLen;
+            assert(baseCharsInChar%2==0);
             this->charsInWord = wordLen/charLen;
             charSpace = 1<<(charLen*8);
             tmp = ippsMalloc_16u(baseCharsInChar+1);
@@ -65,6 +72,14 @@ class CyclicHash {
             ippsLShiftC_16s_I(i,(Ipp16s *)tmp1,baseCharsInChar);
             ippsRShiftC_16u_I(16-i,tmp2,baseCharsInChar);
             ippsOr_8u((Ipp8u *)tmp1,(Ipp8u *)tmp2,(Ipp8u *)dest,charLen);
+        }
+
+        inline void cyclicShiftAns_I(basechartype dest[],size_t i) {
+            ippsCopy_16s((Ipp16s *)dest, (Ipp16s *)tmp1, baseCharsInAns);
+            ippsCopy_16s((Ipp16s *)dest, (Ipp16s *)tmp2, baseCharsInAns);
+            ippsLShiftC_16s_I(i,(Ipp16s *)tmp1,baseCharsInAns);
+            ippsRShiftC_16u_I(16-i,tmp2,baseCharsInAns);
+            ippsOr_8u((Ipp8u *)tmp1,(Ipp8u *)tmp2,(Ipp8u *)dest,ansLen);
         }
 
         inline void cyclicShiftChar(basechartype const src[],basechartype dest[],size_t i,size_t shift) {
@@ -120,8 +135,8 @@ class CyclicHash {
 
         hashanstype collapseChar(basechartype const src[]) {
             hashanstype ans = 0;  // TODO: use vectorization
-            for (int i=0; i<baseCharsInChar; i++) {
-                ans ^= src[i];
+            for (int i=0; i<baseCharsInChar/2; i+=2) {
+                ippsXor_32u_I((Ipp32u *)src+i,&ans,1);
             }
             return ans;
         }
@@ -143,17 +158,21 @@ class CyclicHash {
 
         void moveRight(hashanstype *prev, basechartype const src[]) {
             // TODO: some random permutation
-            cyclicShiftChar(src,tmp,charsInWord);
-            ippsXor_16u_I(src+baseCharsInWord, tmp, baseCharsInChar); //TODO: use avx function
+            cyclicShiftChar(src+baseCharsInWord,tmp,charsInWord);
+            ippsXor_16u_I(src, tmp, baseCharsInChar); //TODO: use avx function
             *prev ^= collapseChar(tmp);
+            cyclicShiftAns_I((basechartype *)prev,baseCharLen*8-1);
+            cout << "charsInWord = " << charsInWord << endl;
+
         }
 
         void moveRight(hashanstype *prev, basechartype const src[], size_t shift) {
             // TODO: some random permutation
-            cyclicShiftChar(src,tmp,charsInWord,shift);
-            deShiftChar(src+baseCharsInWord,accum,shift);
+            cyclicShiftChar(src+baseCharsInWord,tmp,charsInWord,shift);
+            deShiftChar(src,accum,shift);
             ippsXor_16u_I(accum, tmp, baseCharsInChar); //TODO: use avx function
             *prev ^= collapseChar(tmp);
+            cyclicShiftAns_I((basechartype *)prev,baseCharLen*8-1);
         }
 
 

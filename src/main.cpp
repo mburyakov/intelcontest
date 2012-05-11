@@ -1,9 +1,11 @@
+#define DEBUG
+
 #include <iostream>
 #include <string>
 #include <fstream>
 #include <map>
 #include <cstdlib>
-//#include "/home/mburyakov/bin/intel/ipp/include/ipp.h"
+//#include <sparsehash/dense_hash_map>
 #include "../include/cyclichash.h"
 
 using namespace std;
@@ -165,10 +167,10 @@ void testReadDataBlock() {
 
 void testHash(CyclicHash hasher, char *refBinSeq) {
     unsigned int h0;
-    h0 = hasher.singleHash((unsigned short *)refBinSeq);
+    h0 = hasher.singleHash((unsigned short *)refBinSeq,2);
     cout << "hash[0] = " << h0 << endl;
-    cout << "hash[4] = " << hasher.singleHash((unsigned short *)(refBinSeq+4)) << endl;
-    hasher.moveRight(h0,(unsigned short *)refBinSeq);
+    cout << "hash[4] = " << hasher.singleHash((unsigned short *)(refBinSeq+4),2) << endl;
+    hasher.moveRight(&h0,(unsigned short *)refBinSeq,2);
     cout << "hash[0+4] = " << h0 << endl;
 
 }
@@ -218,7 +220,7 @@ int main(int argc, char* argv[]) {
     //char const* refCharSeq = refSeq.c_str();
     //size_t refCharLen = refSeq.length();
     //TODO: remove following 3 lines
-    char const* refCharSeq = "AAAAAAAAAAAAACTGAAAAAAAAAAAAACTGAAAAAAAAAAAAACTGAAAAAAAAAAAAACTGAAAAAAAAAAAAACTGAAAAAAAAAAAAACTGAAAAAAAAAAAAACTGAAAAAAAAAAAAACTG";
+    char const* refCharSeq = "ACTGTCAGTCAGTGCACGTACGTGCATGTACGTGACTGCTGTACGTAAAAACCTGAAAAAAAAAAAAACTGAAAAAAAAAAAAACTGAAAAAAAAAAAAACTGAAAAAAAAAAAAACTGAAAAAAAAAAAAACTG";
     size_t refCharLen = 128;
     minMatchCharLen = 32; //TODO: if it is less than 32 then use other algorithm
 
@@ -236,14 +238,16 @@ int main(int argc, char* argv[]) {
 
     CyclicHash hasher(hashLen, hashLen);
 
+    testHash(hasher,refBinSeq);
+
     map<unsigned int,unsigned long> stripes;
     for (int shift=0; shift<hasher.charLen*8; shift+=2) {
         int n = (refBitLen-shift)/hasher.charLen-hasher.wordLen;
         assert(n>=0);
-        unsigned int hash = hasher.singleHash(refBinSeq,shift);
+        unsigned int hash = hasher.singleHash((basechartype*)refBinSeq,shift);
         insert(stripes,hash,0,shift);
         for (int i = 0; i<n; i+=hasher.charLen) {
-            hasher.moveRight(&hash,refBinSeq+i,shift);
+            hasher.moveRight(&hash,(basechartype*) (refBinSeq+i), shift);
             insert(stripes,hash,i,shift);
         }
     }    

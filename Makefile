@@ -17,7 +17,7 @@ FLAGS ?= -std=c++0x -O3 -Wall $(GCC_SUPPFLAGS)
 
 LDFLAGS ?= -g
 LDLIBS =  -lipps_l -lippcore_l
-INCLUDEPATHS = -I/home/mburyakov/bin/intel/composer_xe_2011_sp1.10.319/ipp/include/ -L/home/mburyakov/bin/intel/composer_xe_2011_sp1.10.319/ipp/lib/intel64
+INCLUDEPATHS = -I/home/mburyakov/bin/intel/composer_xe_2011_sp1.10.319/ipp/include/ -I./include/sparsehash-2.0.2/src/ -L/home/mburyakov/bin/intel/composer_xe_2011_sp1.10.319/ipp/lib/intel64
 #example if using Intel� Threading Building Blocks :
 #LDLIBS = -ltbb -ltbbmalloc
 
