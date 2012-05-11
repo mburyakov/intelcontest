@@ -14,7 +14,7 @@ typedef unsigned int hashanstype;
 typedef Ipp16u basechartype;
 
 class CyclicHash {
-
+    public:
     //all Lens are in bytes
 
     size_t wordLen;
@@ -34,7 +34,7 @@ class CyclicHash {
 
     //unsigned char charPermute[];
 
-    public:
+
         CyclicHash(size_t wordLen, size_t charLen) {
             this->wordLen = wordLen;
             this->charLen = charLen;
@@ -119,7 +119,11 @@ class CyclicHash {
         }
 
         hashanstype collapseChar(basechartype const src[]) {
-            return *((hashanstype *) src); //TODO: use some linear collapse
+            hashanstype ans = 0;  // TODO: use vectorization
+            for (int i=0; i<baseCharsInChar; i++) {
+                ans ^= src[i];
+            }
+            return ans;
         }
 
         hashanstype singleHash(basechartype const src[], size_t shift) {
@@ -137,19 +141,19 @@ class CyclicHash {
             return collapseChar(accum);
         }
 
-        void moveRight(hashanstype &prev, basechartype const src[]) {
+        void moveRight(hashanstype *prev, basechartype const src[]) {
             // TODO: some random permutation
             cyclicShiftChar(src,tmp,charsInWord);
             ippsXor_16u_I(src+baseCharsInWord, tmp, baseCharsInChar); //TODO: use avx function
-            prev ^= collapseChar(tmp);
+            *prev ^= collapseChar(tmp);
         }
 
-        void moveRight(hashanstype &prev, basechartype const src[], size_t shift) {
+        void moveRight(hashanstype *prev, basechartype const src[], size_t shift) {
             // TODO: some random permutation
             cyclicShiftChar(src,tmp,charsInWord,shift);
             deShiftChar(src+baseCharsInWord,accum,shift);
             ippsXor_16u_I(accum, tmp, baseCharsInChar); //TODO: use avx function
-            prev ^= collapseChar(tmp);
+            *prev ^= collapseChar(tmp);
         }
 
 
