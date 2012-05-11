@@ -13,10 +13,10 @@ COMPILER ?= $(GCC_PATH)g++
 # using icc :
 #FLAGS ?= -std=c++0x -U__GXX_EXPERIMENTAL_COMPILER0X__ -xHOST -fast -w1 $(ICC_SUPPFLAGS)
 # using gcc :
-FLAGS ?= -std=c++0x -O3 -Wall $(GCC_SUPPFLAGS)
+FLAGS ?= -std=c++0x -O3 -fopenmp -Wall $(GCC_SUPPFLAGS)
 
 LDFLAGS ?= -g
-LDLIBS =  -lipps_l -lippcore_l
+LDLIBS =  -lipps_l -lippcore_l -lpthread
 INCLUDEPATHS = -I/home/mburyakov/bin/intel/composer_xe_2011_sp1.10.319/ipp/include/ -I./include/sparsehash-2.0.2/src/ -L/home/mburyakov/bin/intel/composer_xe_2011_sp1.10.319/ipp/lib/intel64
 #example if using Intel� Threading Building Blocks :
 #LDLIBS = -ltbb -ltbbmalloc
@@ -32,7 +32,7 @@ OBJS=$(SRCS:src/%.cpp=obj/%.o)
 all: release
 
 release: $(OBJS)
-	$(COMPILER) $(LDFLAGS)  -o $(EXECUTABLE) $(OBJS) $(INCLUDEPATHS) $(LDLIBS)
+	$(COMPILER) $(FLAGS) $(LDFLAGS)  -o $(EXECUTABLE) $(OBJS) $(INCLUDEPATHS) $(LDLIBS)
 
 obj/%.o: src/%.cpp
 	$(COMPILER) $(FLAGS) -o $@ -c $< $(INCLUDEPATHS)

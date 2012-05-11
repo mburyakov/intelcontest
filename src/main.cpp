@@ -5,6 +5,7 @@
 #include <fstream>
 #include <map>
 #include <cstdlib>
+#include <omp.h>
 //#include <sparsehash/dense_hash_map>
 #include "../include/cyclichash.h"
 
@@ -241,6 +242,16 @@ int main(int argc, char* argv[]) {
     testHash(hasher,refBinSeq);
 
     map<unsigned int,unsigned long> stripes;
+    
+    omp_set_dynamic(0);      // запретить библиотеке openmp менять число потоков во время исполнения
+    omp_set_num_threads(numerOfThreads); // установить число потоков в 10
+    #pragma omp parallel for
+
+    for (int i=0; i<10; i++) {
+        for (int j=0; j<1000000; j++);
+        cout << "i=" << i;
+    }
+    
     for (int shift=0; shift<hasher.charLen*8; shift+=2) {
         int n = (refBitLen-shift)/hasher.charLen-hasher.wordLen;
         assert(n>=0);
@@ -250,7 +261,7 @@ int main(int argc, char* argv[]) {
             hasher.moveRight(&hash,(basechartype*) (refBinSeq+i), shift);
             insert(stripes,hash,i,shift);
         }
-    }    
+    }
 
     /*unsigned long *hashKernelPows = initHashKernelPows(hashSize);
 

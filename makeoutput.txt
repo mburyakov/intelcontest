@@ -1,0 +1,4 @@
+/usr/bin/ld: cannot find -liomp5md
+collect2: выполнение ld завершилось с кодом возврата 1
+make: *** [release] Ошибка 1
+ntel64 -lippcore -lipps -lpthread -lippcc -lippr -lippac -lippch -lippcv -lippdc -lippdi -lippi -lippj -lippm -liomp5md
