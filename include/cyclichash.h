@@ -87,12 +87,21 @@ class CyclicHash {
             ippsCopy_16s((Ipp16s *)src, (Ipp16s *)tmp2, baseCharsInChar+1);
             if (shift+i < 16) {
                 ippsLShiftC_16s_I(i+shift,(Ipp16s *)tmp1,baseCharsInChar);
-                ippsRShiftC_16u_I(16-i-shift,tmp2,baseCharsInChar);
+                //cout << "src = "<< *((unsigned int*) (src)) << endl;
+                //cout << "tmp2 = "<< *((unsigned int*) (tmp2)) << endl;
+                //cout << "16-i-shift" << 16-i-shift;
+                ippsRShiftC_16u_I(16-i-shift,tmp2,baseCharsInChar+1);
+                //cout << "tmp2 = "<< *((unsigned int*) (tmp2)) << endl;
                 ippsCopy_16s((Ipp16s *)tmp2+1, (Ipp16s *)tmp3, baseCharsInChar);
                 Ipp16u mask = ((1<<shift)-1)<<i;
+                //cout << "tmp2 = "<< *((unsigned int*) (tmp2)) << endl;
+                //cout << "tmp3 = "<< *((unsigned *) tmp3) << endl;
                 ippsAndC_16u_I(mask,tmp3,baseCharsInChar);  //TODO: use avx function
                 mask = ~mask;
                 ippsAndC_16u_I(mask,tmp2,baseCharsInChar);  //TODO: use avx function
+                //cout << "tmp1 = "<< *((unsigned*) tmp1) << endl;
+                //cout << "tmp2 = "<< *((unsigned *) tmp2) << endl;
+                //cout << "tmp3 = "<< *((unsigned *) tmp3) << endl;
                 ippsOr_8u((Ipp8u *)tmp1,(Ipp8u *)tmp2,(Ipp8u *)dest,charLen);
                 ippsOr_8u_I((Ipp8u *)tmp3,(Ipp8u *)dest,charLen);  //TODO: use avx function
             } else {
@@ -117,6 +126,14 @@ class CyclicHash {
             ippsOr_8u((Ipp8u *)tmp1,(Ipp8u *)tmp2,(Ipp8u *)dest,charLen);
         }
 
+        hashanstype collapseChar(basechartype const src[]) {
+            hashanstype ans = 0;  // TODO: use vectorization
+            for (int i=0; i<baseCharsInChar/2; i+=2) {
+                ippsXor_32u_I((Ipp32u *)src+i,&ans,1);
+            }
+            return ans;
+        }
+
 
         hashanstype singleHash(basechartype const src[]) {
             //cyclic shifting
@@ -133,13 +150,7 @@ class CyclicHash {
             return collapseChar(accum);
         }
 
-        hashanstype collapseChar(basechartype const src[]) {
-            hashanstype ans = 0;  // TODO: use vectorization
-            for (int i=0; i<baseCharsInChar/2; i+=2) {
-                ippsXor_32u_I((Ipp32u *)src+i,&ans,1);
-            }
-            return ans;
-        }
+
 
         hashanstype singleHash(basechartype const src[], size_t shift) {
             //cyclic shifting
@@ -162,7 +173,7 @@ class CyclicHash {
             ippsXor_16u_I(src, tmp, baseCharsInChar); //TODO: use avx function
             *prev ^= collapseChar(tmp);
             cyclicShiftAns_I((basechartype *)prev,baseCharLen*8-1);
-            cout << "charsInWord = " << charsInWord << endl;
+            //cout << "charsInWord = " << charsInWord << endl;
 
         }
 

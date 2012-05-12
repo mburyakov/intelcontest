@@ -168,11 +168,14 @@ void testReadDataBlock() {
 
 void testHash(CyclicHash hasher, char *refBinSeq) {
     unsigned int h0;
-    h0 = hasher.singleHash((unsigned short *)refBinSeq,2);
+    h0 = hasher.singleHash((unsigned short *)refBinSeq);
     cout << "hash[0] = " << h0 << endl;
-    cout << "hash[4] = " << hasher.singleHash((unsigned short *)(refBinSeq+4),2) << endl;
-    hasher.moveRight(&h0,(unsigned short *)refBinSeq,2);
+    cout << "hash[4] = " << hasher.singleHash((unsigned short *)(refBinSeq+4)) << endl;
+    hasher.moveRight(&h0,(unsigned short *)refBinSeq);
     cout << "hash[0+4] = " << h0 << endl;
+    h0 = hasher.singleHash((unsigned short *)refBinSeq,2);
+    //cout << "truesrc = " << *((unsigned long*) refBinSeq)<< endl;
+    cout << "hash[0:2] = " << h0 << endl;
 
 }
 
@@ -221,7 +224,7 @@ int main(int argc, char* argv[]) {
     //char const* refCharSeq = refSeq.c_str();
     //size_t refCharLen = refSeq.length();
     //TODO: remove following 3 lines
-    char const* refCharSeq = "ACTGTCAGTCAGTGCACGTACGTGCATGTACGTGACTGCTGTACGTAAAAACCTGAAAAAAAAAAAAACTGAAAAAAAAAAAAACTGAAAAAAAAAAAAACTGAAAAAAAAAAAAACTGAAAAAAAAAAAAACTG";
+    char const* refCharSeq = "CTCTCTCTCTCTCTCTCTCTCTCTCTCTCTCTCTCTCTCTCTCTAAAAACCTGAAAAAAAAAAAAACTGAAAAAAAAAAAAACTGAAAAAAAAAAAAACTGAAAAAAAAAAAAACTGAAAAAAAAAAAAACTG";
     size_t refCharLen = 128;
     minMatchCharLen = 32; //TODO: if it is less than 32 then use other algorithm
 
