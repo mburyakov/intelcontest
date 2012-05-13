@@ -6,6 +6,7 @@
 #include <map>
 #include <cstdlib>
 #include <omp.h>
+#include <ipp.h>
 //#include <sparsehash/dense_hash_map>
 #include "../include/cyclichash.h"
 
@@ -23,8 +24,7 @@ pair<string,string> getSequence(ifstream& s){
         if(c == '>'){
             s.unget();
             break;
-        }
-        else if (c == 'G' || c=='T' || c=='A' || c=='C'){
+        } else if (c == 'G' || c=='T' || c=='A' || c=='C'){
             sequence.push_back(c);
         }
         // ignore every other chars (newline, etc)
@@ -121,9 +121,6 @@ int bruteforce(int argc, char* argv[]){
     return 0;
 }
 
-#define hashKernel 2147483647
-
-
 //reads A -> 00. C -> 01, T -> 10, G -> 11
 //input:  16 ascii letters
 //output: 32 bit
@@ -202,23 +199,18 @@ int main(int argc, char* argv[]) {
 
     //return bruteforce(argc, argv);
     size_t numerOfThreads = atol(argv[1]);
+
+    omp_set_dynamic(0);      // запретить библиотеке openmp менять число потоков во время исполнения
+    omp_set_num_threads(numerOfThreads-1); // установить число потоков
+    ippStaticInit();
+
+
     size_t minMatchCharLen = atol(argv[2]);
 
     ifstream refSeqFile(argv[3],ios::in);
     pair<string,string> ref = getSequence(refSeqFile);
     string refSeqName = ref.first;
     string refSeq = ref.second;
-
-    // following command line arguments : other files containing sequences
-    // result is stored in an associative array ordered by title
-    map<string,string> otherSequences;
-    for(int i=4; i<argc; i++){ // iterate over command arguments
-        ifstream seqFile(argv[i],ios::in);
-        while(!seqFile.eof()){
-            pair<string,string> other = getSequence(seqFile);
-            otherSequences[other.first] = other.second;
-        }
-    }
 
     //TODO: read data with mmap
     //char const* refCharSeq = refSeq.c_str();
@@ -245,16 +237,7 @@ int main(int argc, char* argv[]) {
     testHash(hasher,refBinSeq);
 
     map<unsigned int,unsigned long> stripes;
-    
-    omp_set_dynamic(0);      // запретить библиотеке openmp менять число потоков во время исполнения
-    omp_set_num_threads(numerOfThreads); // установить число потоков в 10
-    #pragma omp parallel for
 
-    for (int i=0; i<10; i++) {
-        for (int j=0; j<1000000; j++);
-        cout << "i=" << i;
-    }
-    
     for (int shift=0; shift<hasher.charLen*8; shift+=2) {
         int n = (refBitLen-shift)/hasher.charLen-hasher.wordLen;
         assert(n>=0);
@@ -264,6 +247,39 @@ int main(int argc, char* argv[]) {
             hasher.moveRight(&hash,(basechartype*) (refBinSeq+i), shift);
             insert(stripes,hash,i,shift);
         }
+    }
+
+    // following command line arguments : other files containing sequences
+    // result is stored in an associative array ordered by title
+    map<string,string> otherSequences;
+    for(int i=4; i<argc; i++){ // iterate over command arguments
+        ifstream seqFile(argv[i],ios::in);
+        while(!seqFile.eof()){
+            pair<string,string> other = getSequence(seqFile);
+            otherSequences[other.first] = other.second;
+        }
+    }
+
+    int whichSeqStart[] = new int[numberOfWorkingThreads];
+    int whichSeqStop[] = new int[numberOfWorkingThreads];
+    int whichPosStart[] = new int[numberOfWorkingThreads];
+    int whichPosStop[] = new int[numberOfWorkingThreads];
+
+    long threadLen = otherSequencesSumLen/numberOfWorkingThreads;
+    for ((long i=0),(int j=0); i<otherSequencesNum && j<numberOfWorkingThreads; j++) {
+        long thisThreadLen = 0;
+        whichSeqStart[j] = i;
+        if (j>0) {
+            whichPosStart[j] = whichPosStop[j-1];
+        } else {
+            whichPosStart[j] = 0;
+        }
+        while (i<otherSequenceNum && otherSequencesLen[i]+2*thisThreadLen-2*threadLen<0) {
+             thisThreadLen += otherSequencesLen[i];
+             i++;
+        }
+        whichSeqStop[j] = i;
+        whichPosStop[j] = threadLen - thisThreadLen;
     }
 
     /*unsigned long *hashKernelPows = initHashKernelPows(hashSize);

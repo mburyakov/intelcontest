@@ -129,7 +129,7 @@ class CyclicHash {
         hashanstype collapseChar(basechartype const src[]) {
             hashanstype ans = 0;  // TODO: use vectorization
             for (int i=0; i<baseCharsInChar/2; i+=2) {
-                ippsXor_32u_I((Ipp32u *)src+i,&ans,1);
+                ippsXor_32u_I((Ipp32u *)(src+i),&ans,1);
             }
             return ans;
         }
@@ -185,6 +185,7 @@ class CyclicHash {
             *prev ^= collapseChar(tmp);
             cyclicShiftAns_I((basechartype *)prev,baseCharLen*8-1);
         }
+
 
 
     /*CyclicHash(int myn, int mywordsize=19) : hashvalue(0),
