@@ -136,18 +136,21 @@ struct mapped {
             return pair<string,char * >(ans,letters+i);
         }
         
-        mapped readData(unsigned char letters[],unsigned char dest[], long len) {
+        pair<mapped,long> readData(unsigned char letters[],unsigned char dest[], long len, long preclen=0) {
             long j = 0;
             long i;
+            pair<mapped,long> ans;
             for (i=0; letters[i]!='>' && i<len; i++) {
+                if (i==preclen) {
+                    ans.second = j/2;
+                }
                 if (letters[i]=='A'||letters[i]=='C'||letters[i]=='T'||letters[i]=='G') {
                     dest[j>>3] |= ((letters[i]&0x06)<<5)>>(j&0x06);
                     j+=2;
                 }
-            }
-            mapped ans;
-            ans.pnt = (char *) letters+i;
-            ans.len = j/2;
+            }           
+            ans.first.pnt = (char *) letters+i;
+            ans.first.len = j/2;
             return ans;
         }
 

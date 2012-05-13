@@ -175,8 +175,15 @@ void testHash(CyclicHash hasher, char *refBinSeq) {
     hasher.moveRight(&h0,(unsigned short *)refBinSeq);
     cout << "hash[0+4] = " << h0 << endl;
     h0 = hasher.singleHash((unsigned short *)refBinSeq,2);
-    cout << "truesrc = " << *((unsigned int*) refBinSeq)<< endl;
+    //cout << "truesrc = " << *((unsigned int*) refBinSeq)<< endl;
+    h0 = hasher.singleHash((unsigned short *)refBinSeq,2);
     cout << "hash[0:2] = " << h0 << endl;
+    h0 = hasher.singleHash((unsigned short *)refBinSeq,4);
+    cout << "hash[0:4] = " << h0 << endl;
+    h0 = hasher.singleHash((unsigned short *)refBinSeq,6);
+    cout << "hash[0:6] = " << h0 << endl;
+    h0 = hasher.singleHash((unsigned short *)refBinSeq,8);
+    cout << "hash[0:8] = " << h0 << endl;
 
 }
 
@@ -221,7 +228,7 @@ int main(int argc, char* argv[]) {
     
     size_t refBinLen = ((int)(refFile.pnt-namepair.second+refFile.len))/128*32+32;
     char *refBinSeq = (char *) ippsMalloc_16u(refBinLen);
-    Reader::mapped refcharpair = reader.readData((unsigned char *) namepair.second,(unsigned char *)refBinSeq,((int)(refFile.pnt-namepair.second+refFile.len)));
+    Reader::mapped refcharpair = reader.readData((unsigned char *) namepair.second,(unsigned char *)refBinSeq,((int)(refFile.pnt-namepair.second+refFile.len))).first;
     long refCharLen = refcharpair.len;
     assert(refBinLen >= (refCharLen)/128*32+32);
     
@@ -256,16 +263,23 @@ int main(int argc, char* argv[]) {
     map<unsigned int,unsigned long> stripes;
 
     for (int shift=0; shift<hasher.charLen*8; shift+=2) {
+        cout <<shift << "= shift";
         int n = (refBitLen-shift)/hasher.charLen-hasher.wordLen;
-        if (n>=0) {
+        if (n>0) {
             unsigned int hash = hasher.singleHash((basechartype*)refBinSeq,shift);
             insert(stripes,hash,0,shift);
+            cout << "hash = " << hash << "   byte = " << 0 << "    shift = " << shift << endl;
         
-            for (int i = 0; i<n; i+=hasher.charLen) {
+            for (int i = 0; i+hasher.charLen<n; i+=hasher.charLen) {
                 hasher.moveRight(&hash,(basechartype*) (refBinSeq+i), shift);
-                insert(stripes,hash,i,shift);
+                insert(stripes,hash,i+hasher.charLen,shift);
+                cout << "hash = " << hash << "   byte = " << i+hasher.charLen << "    shift = " << shift << endl;
             }
         }
+    }
+    
+    for (map<unsigned int,unsigned long>::iterator it = stripes.begin(); it!=stripes.end(); it++) {
+        cout << "stripe:" << (*it).first << " " << (*it).second << endl;   
     }
 
     // following command line arguments : other files containing sequences
@@ -285,6 +299,8 @@ int main(int argc, char* argv[]) {
     vector<Reader::mapped> *bins = new vector<Reader::mapped>[numberOfWorkingThreads];
     vector<string> *names = new vector<string>[numberOfWorkingThreads];
     string *firstnames = new string[numberOfWorkingThreads];
+    long *prefixes = new long[numberOfWorkingThreads+1];
+    bool *dosumprefix = new bool[numberOfWorkingThreads+1];
     long *whereToStart = new long[numberOfWorkingThreads+10];
     long *whereToStop = new long[numberOfWorkingThreads+10];
     {
@@ -321,34 +337,40 @@ int main(int argc, char* argv[]) {
     //#pragma omp parallel for
     for (int thread = 0; thread<numberOfWorkingThreads; thread++) {
         for (int file = 0; file<files[thread].size(); file++) {
+            Reader::mapped refFile = files[thread][file];
             long start = file==0 ? whereToStart[thread] : 0;
-            long stop = file==files[thread].size()-1 ? whereToStop[thread] : files[thread][file].len;
-            stop = min(stop+hashLen,(unsigned long)refFile.len);      
+            long stop = file==files[thread].size()-1 ? whereToStop[thread] : refFile.len;
+            long newstop = min(stop+2*hashLen*4,(unsigned long)refFile.len);
             cout << "thread = " << thread << endl;
             cout << "start = " << start << endl;
-            cout << "stop = " << stop << endl;
-            Reader::mapped refFile = files[thread][file];
-            size_t refBinLen = (stop-start)/32*32+32;
+            cout << "stop = " << stop << endl;            
+            size_t refBinLen = (stop-start)/32*32+1024;
             char *refBinSeq = (char *) ippsMalloc_16u(refBinLen);
+            pair<Reader::mapped,long> bin1;
             Reader::mapped bin;
-            Reader::mapped bin1;
             bin.pnt = refBinSeq;
+            dosumprefix[thread+1] = true;
             while (stop>start) {
                 cout << "start = " << start << endl;
-                bin1 = reader.readData((unsigned char *) refFile.pnt+start,(unsigned char *)refBinSeq,stop-start);                
-                bin.len = bin1.len;
-                //cout << " text = " << refFile.pnt+start << endl;
-                //cout << "bin.pnt = " << bin.pnt << endl;
+                bin1 = reader.readData((unsigned char *) refFile.pnt+start,(unsigned char *)refBinSeq,newstop-start,stop-start);                
+                bin.len = bin1.first.len;
+                cout << " bin.len = " << bin.len << endl;
+                cout << "bin.pnt = " << (int*)refBinSeq << endl;
+                bin.pnt = refBinSeq;
                 bins[thread].push_back(bin);
-                refBinSeq += bin1.len/4/32*32;
-                start = (bin1.pnt-refFile.pnt);
+                refBinSeq += bin1.first.len/4/32*32+32;
+                start = (bin1.first.pnt-refFile.pnt);
+                cout << "start1 = " << start << endl;
                 if (stop>start) {
-                    pair<string,char *> namepair = reader.readName(bin1.pnt);
+                    pair<string,char *> namepair = reader.readName(bin1.first.pnt);
                     names[thread].push_back(namepair.first);
                     firstnames[thread+1] = namepair.first;
                     start = namepair.second-refFile.pnt;
-                    cout << "strt = " << start << endl;
+                    dosumprefix[thread+1] = false;                    
+                } else {
+                    prefixes[thread+1] = bin1.second;
                 }
+                cout << "start2 = " << start << endl;
             }         
                       
             
@@ -361,10 +383,40 @@ int main(int argc, char* argv[]) {
         }
     }
     
+    //tryCandiadate() {
+        
+    //}
+    
     for (int thread = 0; thread<numberOfWorkingThreads; thread++) {
         cout << "thread = " << thread << endl;
-        for (int bin = 0; bin<names[thread].size(); bin++) {
-            cout << names[thread][bin] << endl;
+        cout << "firstname = " << firstnames[thread] << endl;
+        cout << "prefix = " << prefixes[thread] << endl;
+        cout << "dosumprefix = " << dosumprefix[thread] << endl;
+        if (dosumprefix[thread]) {
+            prefixes[thread]+=prefixes[thread-1];
+            cout << "new prefix = " << prefixes[thread] << endl;
+        }
+    }
+    
+    for (int thread = 0; thread<numberOfWorkingThreads; thread++) {
+        cout << "thread = " << thread << endl;
+        for (int ibin = 0; ibin<bins[thread].size(); ibin++) {
+            Reader::mapped bin = bins[thread][ibin];
+            int hash;
+            for (int i=0; i<bin.len/4; i+=hashLen) {
+                cout << "ibin = " << ibin << endl;
+                //cout << "bin.len = " << bin.len << endl;
+                //cout << (int)(unsigned char)bin.pnt[i] << endl;
+                hash = hasher.singleHash((basechartype *) (bin.pnt+i));
+                map<unsigned int, unsigned long>::iterator it = stripes.find(hash);
+                if (it!=stripes.end()) {
+                    long thispos = i*4+(ibin==0?prefixes[thread]:0);
+                    char* thispnt = bin.pnt+i;
+                    long thatpos = (*it).second;
+                    cout << "found at  " << thispos << " :" << thatpos << endl;
+                    //string seq_name =                     
+                }
+            }
         }
     }
 
