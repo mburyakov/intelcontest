@@ -15,14 +15,14 @@ COMPILER ?= $(GCC_PATH)g++
 # using gcc :
 FLAGS ?= -std=c++0x -O3 -fopenmp -Wall $(GCC_SUPPFLAGS)
 
-LDFLAGS ?= -g
+LDFLAGS ?= -g -fopenmp
 LDLIBS =  -lipps_l -lippcore_l -lpthread
 INCLUDEPATHS = -I/home/mburyakov/bin/intel/composer_xe_2011_sp1.10.319/ipp/include/ -I./include/sparsehash-2.0.2/src/ -L/home/mburyakov/bin/intel/composer_xe_2011_sp1.10.319/ipp/lib/intel64
 #example if using Intel� Threading Building Blocks :
 #LDLIBS = -ltbb -ltbbmalloc
 
 EXECUTABLE = run
-ARGS = 24 16 refseq.txt input.txt
+ARGS = 24 16 refseq.txt input.txt input.txt
 
 TEAM_ID = 19e8fda99f85c066c1cc5e7dcee5f86f # put your 32chars team id here and you will be able to submit your program from command line using "make submit"
 

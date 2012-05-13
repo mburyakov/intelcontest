@@ -4,11 +4,14 @@
 #include <string>
 #include <fstream>
 #include <map>
+#include <vector>
 #include <cstdlib>
 #include <omp.h>
 #include <ipp.h>
+#include <cmath>
 //#include <sparsehash/dense_hash_map>
 #include "../include/cyclichash.h"
+#include "../include/reader.h"
 
 using namespace std;
 
@@ -165,13 +168,14 @@ void testReadDataBlock() {
 
 void testHash(CyclicHash hasher, char *refBinSeq) {
     unsigned int h0;
+    cout << "testHash" << endl;
     h0 = hasher.singleHash((unsigned short *)refBinSeq);
     cout << "hash[0] = " << h0 << endl;
     cout << "hash[4] = " << hasher.singleHash((unsigned short *)(refBinSeq+4)) << endl;
     hasher.moveRight(&h0,(unsigned short *)refBinSeq);
     cout << "hash[0+4] = " << h0 << endl;
     h0 = hasher.singleHash((unsigned short *)refBinSeq,2);
-    //cout << "truesrc = " << *((unsigned long*) refBinSeq)<< endl;
+    cout << "truesrc = " << *((unsigned int*) refBinSeq)<< endl;
     cout << "hash[0:2] = " << h0 << endl;
 
 }
@@ -199,35 +203,48 @@ int main(int argc, char* argv[]) {
 
     //return bruteforce(argc, argv);
     size_t numerOfThreads = atol(argv[1]);
+    size_t numberOfWorkingThreads = numerOfThreads - 1;
 
     omp_set_dynamic(0);      // запретить библиотеке openmp менять число потоков во время исполнения
-    omp_set_num_threads(numerOfThreads-1); // установить число потоков
+    omp_set_num_threads(numberOfWorkingThreads); // установить число потоков
     ippStaticInit();
 
 
     size_t minMatchCharLen = atol(argv[2]);
 
-    ifstream refSeqFile(argv[3],ios::in);
-    pair<string,string> ref = getSequence(refSeqFile);
-    string refSeqName = ref.first;
-    string refSeq = ref.second;
+    //ifstream refSeqFile(argv[3],ios::in);
+    Reader reader;
+    Reader::mapped refFile = Reader::mapfile(argv[3]);
+    
+    
+    pair<string,char *> namepair = reader.readName(refFile.pnt);
+    
+    size_t refBinLen = ((int)(refFile.pnt-namepair.second+refFile.len))/128*32+32;
+    char *refBinSeq = (char *) ippsMalloc_16u(refBinLen);
+    Reader::mapped refcharpair = reader.readData((unsigned char *) namepair.second,(unsigned char *)refBinSeq,((int)(refFile.pnt-namepair.second+refFile.len)));
+    long refCharLen = refcharpair.len;
+    assert(refBinLen >= (refCharLen)/128*32+32);
+    
+    
+    //pair<string,string> ref = getSequence(refSeqFile);
+    //string refSeqName = ref.first;
+    //string refSeq = ref.second;
 
     //TODO: read data with mmap
     //char const* refCharSeq = refSeq.c_str();
     //size_t refCharLen = refSeq.length();
     //TODO: remove following 3 lines
-    char const* refCharSeq = "CTCTCTCTCTCTCTCTCTCTCTCTCTCTCTCTCTCTCTCTCTCTAAAAACCTGAAAAAAAAAAAAACTGAAAAAAAAAAAAACTGAAAAAAAAAAAAACTGAAAAAAAAAAAAACTGAAAAAAAAAAAAACTG";
-    size_t refCharLen = 128;
+    //char const* refCharSeq = "CTCTCTCTCTCTCTCTCTCTCTCTCTCTCTCTCTCTCTCTCTCTAAAAACCTGAAAAAAAAAAAAACTGAAAAAAAAAAAAACTGAAAAAAAAAAAAACTGAAAAAAAAAAAAACTGAAAAAAAAAAAAACTG";
+    //size_t refCharLen = 128;
     minMatchCharLen = 32; //TODO: if it is less than 32 then use other algorithm
 
     size_t minMatchBinLen = minMatchCharLen/4;
-    size_t refBinLen = (refCharLen)/128*32+32;
     size_t refBitLen = refCharLen*2;
-    char *refBinSeq = new char[refBinLen];//TODO: ippMalloc
-    for (size_t i=0; i+16<=refCharLen; i+=16) {
-        readDataBlock((unsigned long  *)(refCharSeq+i),(unsigned  *)(refBinSeq+i/4));
-        //cout << *((unsigned int *) (refBinSeq+i/4)) << endl;
-    }
+    //char *refBinSeq = new char[refBinLen];//TODO: ippMalloc
+    //for (size_t i=0; i+16<=refCharLen; i+=16) {
+    //    readDataBlock((unsigned long  *)(refCharSeq+i),(unsigned  *)(refBinSeq+i/4));
+    //    //cout << *((unsigned int *) (refBinSeq+i/4)) << endl;
+    //}
 
     size_t hashLen = minMatchBinLen/8*4;
     cout << "hashlen = " << hashLen << endl;
@@ -235,35 +252,126 @@ int main(int argc, char* argv[]) {
     CyclicHash hasher(hashLen, hashLen);
 
     testHash(hasher,refBinSeq);
-
+    
     map<unsigned int,unsigned long> stripes;
 
     for (int shift=0; shift<hasher.charLen*8; shift+=2) {
         int n = (refBitLen-shift)/hasher.charLen-hasher.wordLen;
-        assert(n>=0);
-        unsigned int hash = hasher.singleHash((basechartype*)refBinSeq,shift);
-        insert(stripes,hash,0,shift);
-        for (int i = 0; i<n; i+=hasher.charLen) {
-            hasher.moveRight(&hash,(basechartype*) (refBinSeq+i), shift);
-            insert(stripes,hash,i,shift);
+        if (n>=0) {
+            unsigned int hash = hasher.singleHash((basechartype*)refBinSeq,shift);
+            insert(stripes,hash,0,shift);
+        
+            for (int i = 0; i<n; i+=hasher.charLen) {
+                hasher.moveRight(&hash,(basechartype*) (refBinSeq+i), shift);
+                insert(stripes,hash,i,shift);
+            }
         }
     }
 
     // following command line arguments : other files containing sequences
     // result is stored in an associative array ordered by title
     map<string,string> otherSequences;
-    for(int i=4; i<argc; i++){ // iterate over command arguments
-        ifstream seqFile(argv[i],ios::in);
-        while(!seqFile.eof()){
-            pair<string,string> other = getSequence(seqFile);
-            otherSequences[other.first] = other.second;
+    long threadLen = 0;
+    for (int i=4; i<argc; i++) {
+        threadLen += Reader::lookLen(argv[i]);
+    }
+    cout << "threadLen = " << threadLen << endl;
+    threadLen /= numberOfWorkingThreads;
+    threadLen++;
+    
+    cout << "threadLen = " << threadLen << endl;
+    
+    vector<Reader::mapped> *files = new vector<Reader::mapped>[numberOfWorkingThreads];
+    vector<Reader::mapped> *bins = new vector<Reader::mapped>[numberOfWorkingThreads];
+    vector<string> *names = new vector<string>[numberOfWorkingThreads];
+    string *firstnames = new string[numberOfWorkingThreads];
+    long *whereToStart = new long[numberOfWorkingThreads+10];
+    long *whereToStop = new long[numberOfWorkingThreads+10];
+    {
+        int j=0;
+        long thisThreadLen = 0;
+        whereToStart[0] = 0;
+        Reader::mapped refFile = Reader::mapfile(argv[4]);
+        for (int i=4; i<argc; i++) {
+            files[j].push_back(refFile);
+            if (thisThreadLen+refFile.len>=threadLen) {
+                i--;                
+                whereToStop[j] = threadLen - thisThreadLen;
+                whereToStart[j+1] = whereToStop[j];
+                thisThreadLen = -whereToStop[j];
+                
+                cout << "j = " << j << endl;
+                cout << "i = " << i << endl;
+                cout << "thisThreadLen = " << thisThreadLen << endl;
+                cout << " whereToStop[j] = " <<  whereToStop[j] << endl;
+                cout << " whereToStart[j+1] = " <<  whereToStart[j+1] << endl;
+                j++;
+            } else {
+                thisThreadLen += refFile.len;
+                if (i+1<argc) {
+                    refFile = Reader::mapfile(argv[i+1]);
+                }
+                cout << "i = " << i << endl;
+            }
+        }
+        whereToStop[j] = refFile.len;
+        cout << " whereToStop[j] = " <<  whereToStop[j] << endl;
+    }
+    
+    //#pragma omp parallel for
+    for (int thread = 0; thread<numberOfWorkingThreads; thread++) {
+        for (int file = 0; file<files[thread].size(); file++) {
+            long start = file==0 ? whereToStart[thread] : 0;
+            long stop = file==files[thread].size()-1 ? whereToStop[thread] : files[thread][file].len;
+            stop = min(stop+hashLen,(unsigned long)refFile.len);      
+            cout << "thread = " << thread << endl;
+            cout << "start = " << start << endl;
+            cout << "stop = " << stop << endl;
+            Reader::mapped refFile = files[thread][file];
+            size_t refBinLen = (stop-start)/32*32+32;
+            char *refBinSeq = (char *) ippsMalloc_16u(refBinLen);
+            Reader::mapped bin;
+            Reader::mapped bin1;
+            bin.pnt = refBinSeq;
+            while (stop>start) {
+                cout << "start = " << start << endl;
+                bin1 = reader.readData((unsigned char *) refFile.pnt+start,(unsigned char *)refBinSeq,stop-start);                
+                bin.len = bin1.len;
+                //cout << " text = " << refFile.pnt+start << endl;
+                //cout << "bin.pnt = " << bin.pnt << endl;
+                bins[thread].push_back(bin);
+                refBinSeq += bin1.len/4/32*32;
+                start = (bin1.pnt-refFile.pnt);
+                if (stop>start) {
+                    pair<string,char *> namepair = reader.readName(bin1.pnt);
+                    names[thread].push_back(namepair.first);
+                    firstnames[thread+1] = namepair.first;
+                    start = namepair.second-refFile.pnt;
+                    cout << "strt = " << start << endl;
+                }
+            }         
+                      
+            
+            
+            //long refCharLen = reader.readData((unsigned char *) namepair.second,(unsigned char *)refBinSeq,((int)(refFile.pnt-namepair.second+refFile.len)));
+            //assert(refBinLen >= (refCharLen)/128*32+32);
+            //for (long len = start; len < stop; len++){
+            //    putchar (files[thread][file].pnt[len]);   
+            //}
+        }
+    }
+    
+    for (int thread = 0; thread<numberOfWorkingThreads; thread++) {
+        cout << "thread = " << thread << endl;
+        for (int bin = 0; bin<names[thread].size(); bin++) {
+            cout << names[thread][bin] << endl;
         }
     }
 
-    int whichSeqStart[] = new int[numberOfWorkingThreads];
-    int whichSeqStop[] = new int[numberOfWorkingThreads];
-    int whichPosStart[] = new int[numberOfWorkingThreads];
-    int whichPosStop[] = new int[numberOfWorkingThreads];
+    /*int *whichSeqStart = new int[numberOfWorkingThreads];
+    int *whichSeqStop = new int[numberOfWorkingThreads];
+    int *whichPosStart = new int[numberOfWorkingThreads];
+    int *whichPosStop = new int[numberOfWorkingThreads];
 
     long threadLen = otherSequencesSumLen/numberOfWorkingThreads;
     for ((long i=0),(int j=0); i<otherSequencesNum && j<numberOfWorkingThreads; j++) {
@@ -281,7 +389,7 @@ int main(int argc, char* argv[]) {
         whichSeqStop[j] = i;
         whichPosStop[j] = threadLen - thisThreadLen;
     }
-
+*/
     /*unsigned long *hashKernelPows = initHashKernelPows(hashSize);
 
     for (int i=0;i+hashSize<=refBinLen;i+=hashSize) {
