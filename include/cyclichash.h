@@ -67,8 +67,8 @@ class CyclicHash {
         }
 
         inline void cyclicShiftChar(basechartype const src[],basechartype dest[],size_t i) {
-            ippsCopy_16s((Ipp16s *)src, (Ipp16s *)tmp1, baseCharsInChar);
-            ippsCopy_16s((Ipp16s *)src, (Ipp16s *)tmp2, baseCharsInChar);
+            ippsSwapBytes_16u((Ipp16u *)src, (Ipp16u *)tmp1, baseCharsInChar);
+            ippsCopy_16s((Ipp16s *)tmp1, (Ipp16s *)tmp2, baseCharsInChar);
             ippsLShiftC_16s_I(i,(Ipp16s *)tmp1,baseCharsInChar);
             ippsRShiftC_16u_I(16-i,tmp2,baseCharsInChar);
             ippsOr_8u((Ipp8u *)tmp1,(Ipp8u *)tmp2,(Ipp8u *)dest,charLen);
@@ -83,15 +83,17 @@ class CyclicHash {
         }
 
         inline void cyclicShiftChar(basechartype const src[],basechartype dest[],size_t i,size_t shift) {
-            ippsCopy_16s((Ipp16s *)src, (Ipp16s *)tmp1, baseCharsInChar+1);
-            ippsCopy_16s((Ipp16s *)src, (Ipp16s *)tmp2, baseCharsInChar+1);
+            ippsSwapBytes_16u((Ipp16u *)src, (Ipp16u *)tmp1, baseCharsInChar+1);
+            ippsCopy_16s((Ipp16s *)tmp1, (Ipp16s *)tmp2, baseCharsInChar+1);
             if (shift+i < 16) {
                 ippsLShiftC_16s_I(i+shift,(Ipp16s *)tmp1,baseCharsInChar);
+                //cout << "src + 1 = "<< *((unsigned int*) (src+1)) << endl;
                 //cout << "src = "<< *((unsigned int*) (src)) << endl;
                 //cout << "tmp2 = "<< *((unsigned int*) (tmp2)) << endl;
                 //cout << "16-i-shift" << 16-i-shift;
                 ippsRShiftC_16u_I(16-i-shift,tmp2,baseCharsInChar+1);
                 //cout << "tmp2 = "<< *((unsigned int*) (tmp2)) << endl;
+                //cout << "tmp2 + 1 = "<< *((unsigned int*) (tmp2 + 1)) << endl;
                 ippsCopy_16s((Ipp16s *)tmp2+1, (Ipp16s *)tmp3, baseCharsInChar);
                 Ipp16u mask = ((1<<shift)-1)<<i;
                 //cout << "tmp2 = "<< *((unsigned int*) (tmp2)) << endl;
@@ -106,9 +108,9 @@ class CyclicHash {
                 ippsOr_8u_I((Ipp8u *)tmp3,(Ipp8u *)dest,charLen);  //TODO: use avx function
             } else {
                 Ipp16u mask = (1<<i)-1;
-                ippsLShiftC_16s_I(i+shift-16,(Ipp16s *)tmp1,baseCharsInChar);
-                ippsAndC_16u_I(mask,tmp1,baseCharsInChar);  //TODO: use avx function
-                ippsRShiftC_16u_I(32-i-shift,tmp2,baseCharsInChar);
+                ippsLShiftC_16s_I(i+shift-16,(Ipp16s *)tmp1,baseCharsInChar+1);
+                ippsAndC_16u_I(mask,tmp1,baseCharsInChar+1);  //TODO: use avx function
+                ippsRShiftC_16u_I(32-i-shift,tmp2,baseCharsInChar+1);
                 ippsCopy_16s((Ipp16s *)tmp2+1, (Ipp16s *)tmp3, baseCharsInChar);
                 ippsOr_8u((Ipp8u *)tmp3,(Ipp8u *)tmp2,(Ipp8u *)dest,charLen);
                 ippsCopy_16s((Ipp16s *)tmp1+1, (Ipp16s *)tmp3, baseCharsInChar);
@@ -117,13 +119,84 @@ class CyclicHash {
                 ippsOr_8u_I((Ipp8u *)tmp3,(Ipp8u *)dest,charLen); //TODO: use avx function
             }
         }
+        
+        inline long compareForward(basechartype const *src1, basechartype const *src2, size_t shift, long len) {
+            
+            for (int i=0; i<len; i+=baseCharsInChar) {
+                //cout << "len = " << len << endl;
+                //cout << "kyky0" << endl;
+                //cout << "tmp+0 = " << tmp[i] << endl;
+                deShiftChar(src2+i,tmp,shift);
+                //cout << "tmp+0 = " << tmp[i] << endl;
+                //cout << "src2+i = " << src2[i] << endl;
+                ippsSwapBytes_16u(src1+i,accum,baseCharsInChar);
+                ippsXor_16u_I(accum,tmp,baseCharsInChar);
+                //cout << "shift = " << shift << endl;
+                //cout << "tmp+0 = " << tmp[0] << endl;
+                //cout << "src2+0 = " << src2[0] << endl;
+                //cout << "src1+0 = " << src1[0] << endl;
+                for (int j=0; j<baseCharsInChar; j++) {
+                    if (tmp[j]!=0) {
+                        
+                        int stop;
+                        //cout << "shift = " << shift << endl;
+                        //cout << "tmp+0 = " << tmp[0] << endl;
+                        //cout << "src1+0 = " << src1[0] << endl;
+                        for (stop=0; tmp[j]!=0; stop+=1,tmp[j]>>=2);
+                        //cout << "kuku" << endl;
+                        stop = 8-stop+4*baseCharLen*j+4*baseCharsInChar*i;
+                        return stop;
+                    }
+                }
+            }
+            return len*4*baseCharLen;
+        }
+        
+        inline long compareBackward(basechartype const *src1, basechartype const *src2, size_t shift, long len) {
+            
+            for (int i=-baseCharsInChar; -i<len; i-=baseCharsInChar) {
+                //cout << "len = " << len << endl;
+                //cout << "kyky0" << endl;
+                //cout << "tmp+0 = " << tmp[i] << endl;
+                deShiftChar(src2+i,tmp,shift);
+                //cout << "tmp+0 = " << tmp[i] << endl;
+                //cout << "src2+i = " << src2[i] << endl;
+                ippsSwapBytes_16u(src1+i,accum,baseCharsInChar);
+                ippsXor_16u_I(accum,tmp,baseCharsInChar);
+                //cout << "shift = " << shift << endl;
+                //cout << "tmp+0 = " << tmp[0] << endl;
+                //cout << "src2+0 = " << src2[0] << endl;
+                //cout << "src1+0 = " << src1[0] << endl;
+                for (int j=0; j<baseCharsInChar; j++) {
+                    if (tmp[j]!=0) {
+                        
+                        int stop;
+                        //cout << "shift = " << shift << endl;
+                        //cout << "tmp+0 = " << tmp[0] << endl;
+                        //cout << "src1+0 = " << src1[0] << endl;
+                        for (stop=0; tmp[j]!=0; stop+=1,tmp[j]>>=2);
+                        //cout << "kuku" << endl;
+                        stop = 8-stop+4*baseCharLen*j+4*baseCharsInChar*i;
+                        return stop;
+                    }
+                }
+            }
+            return len*4*baseCharLen;
+        }        
 
         inline void deShiftChar(basechartype const src[],basechartype dest[],size_t shift) {
-            ippsCopy_16s((Ipp16s *)src, (Ipp16s *)tmp1, baseCharsInChar+1);
-            ippsCopy_16s((Ipp16s *)src, (Ipp16s *)tmp2, baseCharsInChar+1);
-            ippsLShiftC_16s_I(shift,(Ipp16s *)tmp1,baseCharsInChar);
-            ippsRShiftC_16u_I(16-shift,tmp2,baseCharsInChar);
-            ippsOr_8u((Ipp8u *)tmp1,(Ipp8u *)tmp2,(Ipp8u *)dest,charLen);
+            if (shift == 0) {
+                ippsSwapBytes_16u((Ipp16u *)src, (Ipp16u *)dest, baseCharsInChar);
+                //cout << "src[0] = " << src[0];
+                //cout << "dest[0] = " << dest[0];
+            } else {
+                ippsSwapBytes_16u((Ipp16u *)src, (Ipp16u *)tmp1, baseCharsInChar+1);
+                ippsCopy_16s((Ipp16s *)tmp1, (Ipp16s *)tmp2, baseCharsInChar+1);
+                ippsLShiftC_16s_I(shift,(Ipp16s *)tmp1,baseCharsInChar);
+                ippsRShiftC_16u_I(16-shift,tmp2,baseCharsInChar+1);
+                //cout << "deshiftR = " << tmp2[1] << endl;
+                ippsOr_8u((Ipp8u *)tmp1,(Ipp8u *)(tmp2+1),(Ipp8u *)dest,charLen);
+            }
         }
 
         hashanstype collapseChar(basechartype const src[]) {

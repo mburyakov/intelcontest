@@ -3,6 +3,7 @@
 #include <iostream>
 #include <string>
 #include <fstream>
+//#include <hash_map>
 #include <map>
 #include <vector>
 #include <cstdlib>
@@ -205,6 +206,20 @@ inline void insert(map<unsigned int,unsigned long> &map,unsigned int hash, unsig
     map.insert(pair<unsigned int, unsigned long>(hash,index(byte,shift)));
 }
 
+struct foundation {
+    long seqPos;
+    long refPos;
+    int seqNum;    
+};
+
+
+/*inline bool tryCandidate(long seqPos, long refPos, int seqNum, char* pnt, char* refBinSeq, bool goBack, CyclicHash &hasher) {
+    char *refpnt = refBinSeq + refPos>>8;
+    if (goBack) {
+        hasher.deShiftChar(pnt, basechartype dest[],size_t shift) {
+    }
+}*/
+
 
 int main(int argc, char* argv[]) {
 
@@ -262,10 +277,13 @@ int main(int argc, char* argv[]) {
     
     map<unsigned int,unsigned long> stripes;
 
+    cout << "refBitLen = " << refBitLen << endl;
+    cout << "refBinSeq = " << (int)*refBinSeq << endl;
     for (int shift=0; shift<hasher.charLen*8; shift+=2) {
         cout <<shift << "= shift";
-        int n = (refBitLen-shift)/hasher.charLen-hasher.wordLen;
-        if (n>0) {
+        int n = (refBitLen-shift)/hasher.charLen/8-hasher.charsInWord;
+        cout << " n = " << n << endl ;
+        if (n>=0) {
             unsigned int hash = hasher.singleHash((basechartype*)refBinSeq,shift);
             insert(stripes,hash,0,shift);
             cout << "hash = " << hash << "   byte = " << 0 << "    shift = " << shift << endl;
@@ -284,7 +302,7 @@ int main(int argc, char* argv[]) {
 
     // following command line arguments : other files containing sequences
     // result is stored in an associative array ordered by title
-    map<string,string> otherSequences;
+    //map<string,string> otherSequences;
     long threadLen = 0;
     for (int i=4; i<argc; i++) {
         threadLen += Reader::lookLen(argv[i]);
@@ -298,7 +316,8 @@ int main(int argc, char* argv[]) {
     vector<Reader::mapped> *files = new vector<Reader::mapped>[numberOfWorkingThreads];
     vector<Reader::mapped> *bins = new vector<Reader::mapped>[numberOfWorkingThreads];
     vector<string> *names = new vector<string>[numberOfWorkingThreads];
-    string *firstnames = new string[numberOfWorkingThreads];
+    vector<int> *intnames = new vector<int>[numberOfWorkingThreads];
+    string *firstnames = new string[numberOfWorkingThreads];   
     long *prefixes = new long[numberOfWorkingThreads+1];
     bool *dosumprefix = new bool[numberOfWorkingThreads+1];
     long *whereToStart = new long[numberOfWorkingThreads+10];
@@ -336,6 +355,7 @@ int main(int argc, char* argv[]) {
     
     //#pragma omp parallel for
     for (int thread = 0; thread<numberOfWorkingThreads; thread++) {
+        names[thread].push_back("firstname");
         for (int file = 0; file<files[thread].size(); file++) {
             Reader::mapped refFile = files[thread][file];
             long start = file==0 ? whereToStart[thread] : 0;
@@ -383,10 +403,36 @@ int main(int argc, char* argv[]) {
         }
     }
     
-    //tryCandiadate() {
-        
-    //}
     
+    map<string,int> seqNames;
+       
+    //do not parallel this cycle
+    for (int thread = 0; thread<numberOfWorkingThreads; thread++) {
+        //cout << firstnames[thread] << endl;
+        names[thread][0] = firstnames[thread];
+        for (int name=0; name<names[thread].size(); name++) {
+            seqNames.insert(pair<string,int>(names[thread][name],0));
+        }
+    }
+    
+    //do not parallel this cycle
+    {
+        int i = 0;
+        for (map<string,int>::iterator it = seqNames.begin(); it!=seqNames.end(); it++,i++) {
+            seqNames[(*it).first] = i;
+        }
+    }
+    
+    //we can parallel
+    for (int thread=0; thread<numberOfWorkingThreads; thread++) {
+        for (int i=0; i<names[thread].size(); i++) {
+            intnames[thread].push_back(seqNames[names[thread][i]]);
+        }
+    }
+    
+    vector<pair<string,int> > seqVector(seqNames.begin(), seqNames.end());
+    
+    //we can parallel
     for (int thread = 0; thread<numberOfWorkingThreads; thread++) {
         cout << "thread = " << thread << endl;
         cout << "firstname = " << firstnames[thread] << endl;
@@ -398,13 +444,14 @@ int main(int argc, char* argv[]) {
         }
     }
     
+    //we need parallel
     for (int thread = 0; thread<numberOfWorkingThreads; thread++) {
         cout << "thread = " << thread << endl;
         for (int ibin = 0; ibin<bins[thread].size(); ibin++) {
             Reader::mapped bin = bins[thread][ibin];
             int hash;
-            for (int i=0; i<bin.len/4; i+=hashLen) {
-                cout << "ibin = " << ibin << endl;
+            for (long i=0; i<bin.len/4; i+=hashLen) {
+                //cout << "ibin = " << ibin << endl;
                 //cout << "bin.len = " << bin.len << endl;
                 //cout << (int)(unsigned char)bin.pnt[i] << endl;
                 hash = hasher.singleHash((basechartype *) (bin.pnt+i));
@@ -414,7 +461,15 @@ int main(int argc, char* argv[]) {
                     char* thispnt = bin.pnt+i;
                     long thatpos = (*it).second;
                     cout << "found at  " << thispos << " :" << thatpos << endl;
-                    //string seq_name =                     
+                    //cout << "that = " << (int)(unsigned char)(*(refBinSeq+(thatpos>>8))) << endl;
+                    //cout << "this = " << (int)(unsigned char)(*(thispnt)) << endl;
+                    long forwlen = min((bin.len-i*4)/8+0ul,(refBitLen)/16-(thatpos>>9))+1;
+                    long backwlen = min((i*4)/8,(thatpos>>9));
+                    long endpos = thispos + hasher.compareForward((basechartype *) thispnt, (basechartype *)(refBinSeq+(thatpos>>8)), thatpos&0x06, forwlen);
+                    long startpos = thispos + hasher.compareBackward((basechartype *) thispnt, (basechartype *)(refBinSeq+(thatpos>>8)), thatpos&0x06, backwlen);
+                    //cout << "thispos = " << thispos << endl;
+                    cout << "startpos = " << startpos << endl;
+                    cout << "endpos = " << endpos << endl;
                 }
             }
         }

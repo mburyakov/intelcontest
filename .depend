@@ -1,2 +1,0 @@
-obj/main.o: src/main.cpp src/../include/cyclichash.h \
- src/../include/reader.h

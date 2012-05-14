@@ -17,7 +17,8 @@ FLAGS ?= -std=c++0x -O3 -fopenmp -Wall $(GCC_SUPPFLAGS)
 
 LDFLAGS ?= -g -fopenmp
 LDLIBS =  -lipps_l -lippcore_l -lpthread
-INCLUDEPATHS = -I/home/mburyakov/bin/intel/composer_xe_2011_sp1.10.319/ipp/include/ -I./include/sparsehash-2.0.2/src/ -L/home/mburyakov/bin/intel/composer_xe_2011_sp1.10.319/ipp/lib/intel64
+IPPPATH = /opt/intel/composerxe
+INCLUDEPATHS = -I$(IPPPATH)/ipp/include/ -I./include/sparsehash-2.0.2/src/ -L$(IPPPATH)/ipp/lib/intel64
 #example if using Intel� Threading Building Blocks :
 #LDLIBS = -ltbb -ltbbmalloc
 
