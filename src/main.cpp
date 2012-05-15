@@ -208,8 +208,9 @@ inline void insert(map<unsigned int,unsigned long> &map,unsigned int hash, unsig
 
 struct foundation {
     long seqPos;
-    long refPos;
-    int seqNum;    
+    long seqStartPos;
+    long seqEndPos;
+    long refStartPos;
 };
 
 
@@ -464,11 +465,12 @@ int main(int argc, char* argv[]) {
                     //cout << "that = " << (int)(unsigned char)(*(refBinSeq+(thatpos>>8))) << endl;
                     //cout << "this = " << (int)(unsigned char)(*(thispnt)) << endl;
                     long forwlen = min((bin.len-i*4)/8+0ul,(refBitLen)/16-(thatpos>>9))+1;
-                    long backwlen = min((i*4)/8,(thatpos>>9));
+                    long backwlen = min(i/2,(thatpos>>9));
                     long endpos = thispos + hasher.compareForward((basechartype *) thispnt, (basechartype *)(refBinSeq+(thatpos>>8)), thatpos&0x06, forwlen);
                     long startpos = thispos + hasher.compareBackward((basechartype *) thispnt, (basechartype *)(refBinSeq+(thatpos>>8)), thatpos&0x06, backwlen);
                     //cout << "thispos = " << thispos << endl;
                     cout << "startpos = " << startpos << endl;
+                    endpos = min(endpos,bin.len);
                     cout << "endpos = " << endpos << endl;
                 }
             }
