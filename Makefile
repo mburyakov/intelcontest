@@ -13,9 +13,9 @@ COMPILER ?= $(GCC_PATH)g++
 # using icc :
 #FLAGS ?= -std=c++0x -U__GXX_EXPERIMENTAL_COMPILER0X__ -xHOST -fast -w1 $(ICC_SUPPFLAGS)
 # using gcc :
-FLAGS ?= -std=c++0x -O3 -fopenmp -Wall $(GCC_SUPPFLAGS)
+FLAGS ?= -std=c++0x -O3 -fopenmp -fpermissive -Wall $(GCC_SUPPFLAGS)
 
-LDFLAGS ?= -g -fopenmp
+LDFLAGS ?= -g -fpermissive -fopenmp
 LDLIBS =  -lipps_l -lippcore_l -lpthread
 IPPPATH = /opt/intel/composerxe
 INCLUDEPATHS = -I$(IPPPATH)/ipp/include/ -I./include/sparsehash-2.0.2/src/ -L$(IPPPATH)/ipp/lib/intel64
@@ -23,7 +23,7 @@ INCLUDEPATHS = -I$(IPPPATH)/ipp/include/ -I./include/sparsehash-2.0.2/src/ -L$(I
 #LDLIBS = -ltbb -ltbbmalloc
 
 EXECUTABLE = run
-ARGS = 24 16 refseq.txt input.txt input.txt
+ARGS = 2 31 refseq.txt input.txt
 
 TEAM_ID = 19e8fda99f85c066c1cc5e7dcee5f86f # put your 32chars team id here and you will be able to submit your program from command line using "make submit"
 

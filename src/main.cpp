@@ -3,6 +3,7 @@
 #include <iostream>
 #include <string>
 #include <fstream>
+#include <algorithm>
 //#include <hash_map>
 #include <map>
 #include <vector>
@@ -167,7 +168,7 @@ void testReadDataBlock() {
 }
 
 
-void testHash(CyclicHash hasher, char *refBinSeq) {
+void testHash(CyclicHash &hasher, char *refBinSeq) {
     unsigned int h0;
     cout << "testHash" << endl;
     h0 = hasher.singleHash((unsigned short *)refBinSeq);
@@ -202,16 +203,116 @@ inline unsigned long index(unsigned long byte, unsigned char shift) {
     return (byte<<8)+shift;
 }
 
-inline void insert(map<unsigned int,unsigned long> &map,unsigned int hash, unsigned long byte, unsigned char shift) {
+inline void insert(multimap<unsigned int,unsigned long> &map,unsigned int hash, unsigned long byte, unsigned char shift) {
     map.insert(pair<unsigned int, unsigned long>(hash,index(byte,shift)));
 }
 
 struct foundation {
-    long seqPos;
+    long seqNum;
     long seqStartPos;
     long seqEndPos;
     long refStartPos;
 };
+
+struct anspos {
+    unsigned short seqNum;
+    long refStartPos;
+    long seqStartPos;
+};
+
+union ansunion {
+    anspos ansstruct;
+    long something;
+};
+
+bool compareans(foundation const &a, foundation const &b) {
+    if (a.seqNum < b.seqNum) {
+        //cout << "<";
+        return true;
+    }
+    if (a.seqNum > b.seqNum) {
+        //cout << "<";
+        return false;
+    }
+    if (a.refStartPos+a.seqEndPos-a.seqStartPos < b.refStartPos+b.seqEndPos-b.seqStartPos) {
+        //cout << "<";
+        return true;
+    }
+    if (a.refStartPos+a.seqEndPos-a.seqStartPos > b.refStartPos+b.seqEndPos-b.seqStartPos) {
+        //cout << "<";
+        return false;
+    }
+    if (a.seqEndPos < b.seqEndPos) {
+        return true;
+    }
+    return false;
+}
+
+bool compareprev(foundation const &a, foundation const &b) {
+    if (a.seqNum < b.seqNum) {
+        //cout << "<";
+        return true;
+    }
+    if (a.seqNum > b.seqNum) {
+        //cout << "<";
+        return false;
+    }
+    if (a.refStartPos-a.seqStartPos < b.refStartPos-b.seqStartPos) {
+        return true;
+    }
+    if (a.refStartPos-a.seqStartPos > b.refStartPos-b.seqStartPos) {
+        return false;
+    }
+    if (a.refStartPos < b.refStartPos) {
+        return true;
+    }
+    if (a.refStartPos > b.refStartPos) {
+        return false;
+    }
+    if (a.seqStartPos < b.seqStartPos) {
+        return true;
+    }
+    return false;
+}
+
+bool operator<(anspos const &a, anspos const &b) {
+    if (a.seqNum < b.seqNum) {
+        return true;
+    }
+    if (a.refStartPos < b.refStartPos) {
+        return true;
+    }
+    if (a.seqStartPos < b.seqStartPos) {
+        return true;
+    }
+    return false;
+}
+
+bool operator==(anspos const &a, anspos const &b) {
+    if (a.seqNum != b.seqNum) {
+        return false;
+    }
+    if (a.refStartPos != b.refStartPos) {
+        return false;
+    }
+    if (a.seqStartPos != b.seqStartPos) {
+        return false;
+    }
+    return true;
+}
+
+bool operator<=(anspos const &a, anspos const &b) {
+    return (a<b) || (a==b);
+}
+
+bool operator>(anspos const &a, anspos const &b) {
+    return !(a<=b);
+}
+
+bool operator>=(anspos const &a, anspos const &b) {
+    return !(a<b);
+}
+
 
 
 /*inline bool tryCandidate(long seqPos, long refPos, int seqNum, char* pnt, char* refBinSeq, bool goBack, CyclicHash &hasher) {
@@ -259,8 +360,13 @@ int main(int argc, char* argv[]) {
     //TODO: remove following 3 lines
     //char const* refCharSeq = "CTCTCTCTCTCTCTCTCTCTCTCTCTCTCTCTCTCTCTCTCTCTAAAAACCTGAAAAAAAAAAAAACTGAAAAAAAAAAAAACTGAAAAAAAAAAAAACTGAAAAAAAAAAAAACTGAAAAAAAAAAAAACTG";
     //size_t refCharLen = 128;
-    minMatchCharLen = 32; //TODO: if it is less than 32 then use other algorithm
+    //minMatchCharLen = 32; //TODO: if it is less than 32 then use other algorithm
 
+    if (minMatchCharLen < 32) {
+        return bruteforce(argc, argv);
+    }
+    return 0;
+    
     size_t minMatchBinLen = minMatchCharLen/4;
     size_t refBitLen = refCharLen*2;
     //char *refBinSeq = new char[refBinLen];//TODO: ippMalloc
@@ -269,37 +375,49 @@ int main(int argc, char* argv[]) {
     //    //cout << *((unsigned int *) (refBinSeq+i/4)) << endl;
     //}
 
-    size_t hashLen = minMatchBinLen/8*4;
+    size_t hashLen;
     cout << "hashlen = " << hashLen << endl;
-
-    CyclicHash hasher(hashLen, hashLen);
-
-    testHash(hasher,refBinSeq);
     
-    map<unsigned int,unsigned long> stripes;
+    CyclicHash *hasher;
+    
+    if (minMatchCharLen < 31) {
+        hasher = new TinyHash[numberOfWorkingThreads];
+        hashLen = 2;
+    } else {
+        hashLen = minMatchBinLen/8*4;
+        hasher = new CyclicHash[numberOfWorkingThreads](hashLen,hashLen);        
+    }    
+    
+    cout << "hashlen = " << hashLen << endl;
+    
+    
+    //testHash(hasher[0],refBinSeq);
+    //return 0;
+    
+    multimap<unsigned int,unsigned long> stripes;
 
-    cout << "refBitLen = " << refBitLen << endl;
-    cout << "refBinSeq = " << (int)*refBinSeq << endl;
-    for (int shift=0; shift<hasher.charLen*8; shift+=2) {
-        cout <<shift << "= shift";
-        int n = (refBitLen-shift)/hasher.charLen/8-hasher.charsInWord;
-        cout << " n = " << n << endl ;
+    //cout << "refBitLen = " << refBitLen << endl;
+    //cout << "refBinSeq = " << (int)*refBinSeq << endl;
+    for (int shift=0; shift<hasher[0].charLen*8; shift+=2) {
+        //cout << (shift&0x0e) << "= shift";
+        int n = (refBitLen-shift)/hasher[0].charLen/8-hasher[0].charsInWord;
+        //cout << " n = " << n << endl;
         if (n>=0) {
-            unsigned int hash = hasher.singleHash((basechartype*)refBinSeq,shift);
-            insert(stripes,hash,0,shift);
-            cout << "hash = " << hash << "   byte = " << 0 << "    shift = " << shift << endl;
+            unsigned int hash = hasher[0].singleHash(((basechartype*)refBinSeq)+(shift>>4),shift&0x0e);
+            insert(stripes,hash,(shift>>4)*2,shift&0x0e);
+            //cout << "hash = " << hash << "   byte = " << 0 << "    shift = " << shift << endl;
         
-            for (int i = 0; i+hasher.charLen<n; i+=hasher.charLen) {
-                hasher.moveRight(&hash,(basechartype*) (refBinSeq+i), shift);
-                insert(stripes,hash,i+hasher.charLen,shift);
-                cout << "hash = " << hash << "   byte = " << i+hasher.charLen << "    shift = " << shift << endl;
+            for (int i = 0; i<n*hasher[0].charLen; i+=hasher[0].charLen) {
+                hasher[0].moveRight(&hash,(((basechartype*) (refBinSeq+i))+(shift>>4)), shift&0x0e);
+                insert(stripes,hash,i+hasher[0].charLen+(shift>>4)*2,shift&0x0e);
+                cout << "hash = " << hash << "   byte = " << i+hasher[0].charLen+(shift>>4)*2 << "    shift = " << (shift&0x0e) << endl;
             }
         }
     }
     
-    for (map<unsigned int,unsigned long>::iterator it = stripes.begin(); it!=stripes.end(); it++) {
-        cout << "stripe:" << (*it).first << " " << (*it).second << endl;   
-    }
+    //for (map<unsigned int,unsigned long>::iterator it = stripes.begin(); it!=stripes.end(); it++) {
+        //cout << "stripe:" << (*it).first << " " << (*it).second << endl;   
+    //}
 
     // following command line arguments : other files containing sequences
     // result is stored in an associative array ordered by title
@@ -308,21 +426,22 @@ int main(int argc, char* argv[]) {
     for (int i=4; i<argc; i++) {
         threadLen += Reader::lookLen(argv[i]);
     }
-    cout << "threadLen = " << threadLen << endl;
+    //cout << "threadLen = " << threadLen << endl;
     threadLen /= numberOfWorkingThreads;
     threadLen++;
     
-    cout << "threadLen = " << threadLen << endl;
+    //cout << "threadLen = " << threadLen << endl;
     
     vector<Reader::mapped> *files = new vector<Reader::mapped>[numberOfWorkingThreads];
     vector<Reader::mapped> *bins = new vector<Reader::mapped>[numberOfWorkingThreads];
     vector<string> *names = new vector<string>[numberOfWorkingThreads];
+    vector<foundation> *found = new vector<foundation>[numberOfWorkingThreads];
     vector<int> *intnames = new vector<int>[numberOfWorkingThreads];
-    string *firstnames = new string[numberOfWorkingThreads];   
+    string *firstnames = new string[numberOfWorkingThreads+1];   
     long *prefixes = new long[numberOfWorkingThreads+1];
     bool *dosumprefix = new bool[numberOfWorkingThreads+1];
-    long *whereToStart = new long[numberOfWorkingThreads+10];
-    long *whereToStop = new long[numberOfWorkingThreads+10];
+    long *whereToStart = new long[numberOfWorkingThreads+1];
+    long *whereToStop = new long[numberOfWorkingThreads+1];
     {
         int j=0;
         long thisThreadLen = 0;
@@ -336,52 +455,52 @@ int main(int argc, char* argv[]) {
                 whereToStart[j+1] = whereToStop[j];
                 thisThreadLen = -whereToStop[j];
                 
-                cout << "j = " << j << endl;
-                cout << "i = " << i << endl;
-                cout << "thisThreadLen = " << thisThreadLen << endl;
-                cout << " whereToStop[j] = " <<  whereToStop[j] << endl;
-                cout << " whereToStart[j+1] = " <<  whereToStart[j+1] << endl;
+                //cout << "j = " << j << endl;
+                //cout << "i = " << i << endl;
+                //cout << "thisThreadLen = " << thisThreadLen << endl;
+                //cout << " whereToStop[j] = " <<  whereToStop[j] << endl;
+                //cout << " whereToStart[j+1] = " <<  whereToStart[j+1] << endl;
                 j++;
             } else {
                 thisThreadLen += refFile.len;
                 if (i+1<argc) {
                     refFile = Reader::mapfile(argv[i+1]);
                 }
-                cout << "i = " << i << endl;
+                //cout << "i = " << i << endl;
             }
         }
         whereToStop[j] = refFile.len;
-        cout << " whereToStop[j] = " <<  whereToStop[j] << endl;
+        //cout << " whereToStop[j] = " <<  whereToStop[j] << endl;
     }
     
-    //#pragma omp parallel for
+    #pragma omp parallel for
     for (int thread = 0; thread<numberOfWorkingThreads; thread++) {
         names[thread].push_back("firstname");
         for (int file = 0; file<files[thread].size(); file++) {
             Reader::mapped refFile = files[thread][file];
             long start = file==0 ? whereToStart[thread] : 0;
             long stop = file==files[thread].size()-1 ? whereToStop[thread] : refFile.len;
-            long newstop = min(stop+2*hashLen*4,(unsigned long)refFile.len);
-            cout << "thread = " << thread << endl;
-            cout << "start = " << start << endl;
-            cout << "stop = " << stop << endl;            
+            long newstop = min(stop+4*hashLen*4,(unsigned long)refFile.len);
+            //cout << "thread = " << thread << endl;
+            //cout << "start = " << start << endl;
+            //cout << "stop = " << stop << endl;            
             size_t refBinLen = (stop-start)/32*32+1024;
-            char *refBinSeq = (char *) ippsMalloc_16u(refBinLen);
+            char *refBinSeq = hasher[thread].charLen + (char *) ippsMalloc_16u(refBinLen/2+hasher[thread].baseCharsInChar);
             pair<Reader::mapped,long> bin1;
             Reader::mapped bin;
             bin.pnt = refBinSeq;
             dosumprefix[thread+1] = true;
             while (stop>start) {
-                cout << "start = " << start << endl;
+                //cout << "start = " << start << endl;
                 bin1 = reader.readData((unsigned char *) refFile.pnt+start,(unsigned char *)refBinSeq,newstop-start,stop-start);                
                 bin.len = bin1.first.len;
-                cout << " bin.len = " << bin.len << endl;
-                cout << "bin.pnt = " << (int*)refBinSeq << endl;
+                //cout << " bin.len = " << bin.len << endl;
+                //cout << "bin.pnt = " << (int*)refBinSeq << endl;
                 bin.pnt = refBinSeq;
                 bins[thread].push_back(bin);
                 refBinSeq += bin1.first.len/4/32*32+32;
                 start = (bin1.first.pnt-refFile.pnt);
-                cout << "start1 = " << start << endl;
+                //cout << "start1 = " << start << endl;
                 if (stop>start) {
                     pair<string,char *> namepair = reader.readName(bin1.first.pnt);
                     names[thread].push_back(namepair.first);
@@ -391,7 +510,7 @@ int main(int argc, char* argv[]) {
                 } else {
                     prefixes[thread+1] = bin1.second;
                 }
-                cout << "start2 = " << start << endl;
+                //cout << "start2 = " << start << endl;
             }         
                       
             
@@ -401,6 +520,19 @@ int main(int argc, char* argv[]) {
             //for (long len = start; len < stop; len++){
             //    putchar (files[thread][file].pnt[len]);   
             //}
+        }
+    }
+
+    //do not parallel this cycle
+    for (int thread = 1; thread<numberOfWorkingThreads; thread++) {
+        //cout << "thread = " << thread << endl;
+        //cout << "firstname = " << firstnames[thread] << endl;
+        //cout << "prefix = " << prefixes[thread] << endl;
+        //cout << "dosumprefix = " << dosumprefix[thread] << endl;
+        if (dosumprefix[thread]) {
+            prefixes[thread]+=prefixes[thread-1];
+            firstnames[thread] = firstnames[thread-1];
+            //cout << "new prefix = " << prefixes[thread] << endl;
         }
     }
     
@@ -424,7 +556,7 @@ int main(int argc, char* argv[]) {
         }
     }
     
-    //we can parallel
+    #pragma omp parallel for
     for (int thread=0; thread<numberOfWorkingThreads; thread++) {
         for (int i=0; i<names[thread].size(); i++) {
             intnames[thread].push_back(seqNames[names[thread][i]]);
@@ -432,81 +564,135 @@ int main(int argc, char* argv[]) {
     }
     
     vector<pair<string,int> > seqVector(seqNames.begin(), seqNames.end());
-    
-    //we can parallel
+        
+    #pragma omp parallel for
     for (int thread = 0; thread<numberOfWorkingThreads; thread++) {
-        cout << "thread = " << thread << endl;
-        cout << "firstname = " << firstnames[thread] << endl;
-        cout << "prefix = " << prefixes[thread] << endl;
-        cout << "dosumprefix = " << dosumprefix[thread] << endl;
-        if (dosumprefix[thread]) {
-            prefixes[thread]+=prefixes[thread-1];
-            cout << "new prefix = " << prefixes[thread] << endl;
-        }
-    }
-    
-    //we need parallel
-    for (int thread = 0; thread<numberOfWorkingThreads; thread++) {
-        cout << "thread = " << thread << endl;
+        //cout << "thread = " << thread << endl;
         for (int ibin = 0; ibin<bins[thread].size(); ibin++) {
             Reader::mapped bin = bins[thread][ibin];
-            int hash;
+            unsigned int hash;
             for (long i=0; i<bin.len/4; i+=hashLen) {
                 //cout << "ibin = " << ibin << endl;
+                //cout << "pos = " <<  i*4+(ibin==0?prefixes[thread]:0) << endl;
                 //cout << "bin.len = " << bin.len << endl;
                 //cout << (int)(unsigned char)bin.pnt[i] << endl;
-                hash = hasher.singleHash((basechartype *) (bin.pnt+i));
-                map<unsigned int, unsigned long>::iterator it = stripes.find(hash);
-                if (it!=stripes.end()) {
+                hash = hasher[thread].singleHash((basechartype *) (bin.pnt+i));
+                cout << "hash = " << hash << endl;
+                //multimap<unsigned int, unsigned long>::iterator it = stripes.find(hash);
+                pair<multimap<unsigned int, unsigned long>::iterator,multimap<unsigned int, unsigned long>::iterator> range = stripes.equal_range(hash);
+                for (multimap<unsigned int, unsigned long>::iterator it=range.first; it!=range.second; it++) {
                     long thispos = i*4+(ibin==0?prefixes[thread]:0);
                     char* thispnt = bin.pnt+i;
                     long thatpos = (*it).second;
-                    cout << "found at  " << thispos << " :" << thatpos << endl;
-                    //cout << "that = " << (int)(unsigned char)(*(refBinSeq+(thatpos>>8))) << endl;
-                    //cout << "this = " << (int)(unsigned char)(*(thispnt)) << endl;
-                    long forwlen = min((bin.len-i*4)/8+0ul,(refBitLen)/16-(thatpos>>9))+1;
-                    long backwlen = min(i/2,(thatpos>>9));
-                    long endpos = thispos + hasher.compareForward((basechartype *) thispnt, (basechartype *)(refBinSeq+(thatpos>>8)), thatpos&0x06, forwlen);
-                    long startpos = thispos + hasher.compareBackward((basechartype *) thispnt, (basechartype *)(refBinSeq+(thatpos>>8)), thatpos&0x06, backwlen);
-                    //cout << "thispos = " << thispos << endl;
-                    cout << "startpos = " << startpos << endl;
-                    endpos = min(endpos,bin.len);
+                    long realthatpos = (thatpos>>6)+((thatpos&0xff)>>1);
+                    cout << "found at  " << thispos << " :" << realthatpos << " | " << seqVector[intnames[thread][ibin]].first << endl;
+                    cout << "that = " << (short)(unsigned char)(*(refBinSeq+(thatpos>>8))) << endl;
+                    cout << "this = " << (short)(unsigned char)(*(thispnt)) << endl;
+                    long forwlen = min((bin.len-i*4)+0ul,(refBitLen)/2-realthatpos);
+                    long backwlen = min(i*4,realthatpos);
+                    long endpos = hasher[thread].compareForward((basechartype *) thispnt, (basechartype *)(refBinSeq+(thatpos>>8)), thatpos&0xff, forwlen);
+                    long startpos = hasher[thread].compareBackward((basechartype *) thispnt, (basechartype *)(refBinSeq+(thatpos>>8)), thatpos&0xff, backwlen);
+                    cout << "thispos = " << thispos << endl;
+                    cout << "startpos = " << startpos << endl;                    
                     cout << "endpos = " << endpos << endl;
+                    endpos = min(endpos,forwlen);
+                    startpos = max(startpos,-backwlen);
+                    cout << "startpos = " << startpos << endl;                    
+                    cout << "endpos = " << endpos << endl;
+                    endpos += thispos;
+                    startpos += thispos;
+                    cout << "startpos = " << startpos << endl;                    
+                    cout << "endpos = " << endpos << endl;
+                    if ((endpos-startpos)/4>=hashLen) {
+                        foundation f;
+                        f.seqNum = intnames[thread][ibin];
+                        f.seqStartPos = startpos;
+                        f.seqEndPos = endpos;
+                        f.refStartPos = (thatpos>>6)+((thatpos&0xff)>>1)-thispos+startpos;
+                        found[thread].push_back(f);
+                        //i+=((endpos-thispos)/4/hashLen-1)*hashLen;
+                    }
                 }
             }
         }
     }
-
-    /*int *whichSeqStart = new int[numberOfWorkingThreads];
-    int *whichSeqStop = new int[numberOfWorkingThreads];
-    int *whichPosStart = new int[numberOfWorkingThreads];
-    int *whichPosStop = new int[numberOfWorkingThreads];
-
-    long threadLen = otherSequencesSumLen/numberOfWorkingThreads;
-    for ((long i=0),(int j=0); i<otherSequencesNum && j<numberOfWorkingThreads; j++) {
-        long thisThreadLen = 0;
-        whichSeqStart[j] = i;
-        if (j>0) {
-            whichPosStart[j] = whichPosStop[j-1];
-        } else {
-            whichPosStart[j] = 0;
+    
+    //old dummy code
+    /*{
+    int thr_1 = 0;        
+    for (int thread = 1; thread<numberOfWorkingThreads; thread++) {
+        if (found[thr_1].size()>0) {
+            if (found[thread].size()>0) {                
+                foundation &fp = found[thr_1][found[thr_1].size()-1];
+                foundation &ft = found[thread][0];
+                
+                if (fp.seqNum == ft.seqNum) {
+                    cout << "thread = " << thread << endl;
+                    if (fp.seqEndPos>=ft.seqStartPos) {
+                        if (fp.seqStartPos-fp.refStartPos==ft.seqStartPos-ft.refStartPos) {
+                            
+                            cout << "seqStartPos = " << fp.seqStartPos << endl;
+                            cout << "found[thread].size() = " << found[thread].size() << endl;
+                            
+                            ft.seqStartPos = fp.seqStartPos;
+                            ft.refStartPos = fp.refStartPos;
+                            found[thr_1].pop_back();                            
+                        }
+                    }
+                }
+                thr_1 = thread;
+            }            
+        } else if (found[thread].size()>0) {
+            thr_1 = thread;
         }
-        while (i<otherSequenceNum && otherSequencesLen[i]+2*thisThreadLen-2*threadLen<0) {
-             thisThreadLen += otherSequencesLen[i];
-             i++;
-        }
-        whichSeqStop[j] = i;
-        whichPosStop[j] = threadLen - thisThreadLen;
     }
-*/
-    /*unsigned long *hashKernelPows = initHashKernelPows(hashSize);
-
-    for (int i=0;i+hashSize<=refBinLen;i+=hashSize) {
-        cout << "i = " << (unsigned long const *)(refBinSeq+i) << endl;
-        cout << calcSingleAlignedHash((unsigned long const *)(refBinSeq+i),hashSize) << endl;
-    } */
-
-    //testReadDataBlock();
-    cout << endl << endl;
+    }*/
+    
+    
+    vector<foundation> answer;
+    
+    for (int thread = 0; thread<numberOfWorkingThreads; thread++) {
+        answer.insert(answer.end(),found[thread].begin(),found[thread].end());       
+    }
+    
+    sort(answer.begin(),answer.end(),compareprev);
+    
+    for (int ia = 1; ia<answer.size(); ia++) {
+        if (answer[ia-1].seqNum==answer[ia].seqNum) {
+            if (answer[ia-1].seqStartPos-answer[ia-1].refStartPos==answer[ia].seqStartPos-answer[ia].refStartPos) {
+                if (answer[ia-1].seqEndPos>=answer[ia].seqStartPos) {
+                    answer[ia].seqStartPos = answer[ia-1].seqStartPos;
+                    answer[ia].refStartPos = answer[ia-1].refStartPos;
+                    answer[ia-1].seqNum = -1;
+                }
+            }
+        }
+    }
+    
+    sort(answer.begin(),answer.end(),compareans);
+    
+    long name1 = 0, name2;
+    for (vector<foundation>::iterator it = answer.begin(); it!=answer.end(); it++) {
+        foundation itt = (*it);
+        name2 = itt.seqNum;
+        if (name2!=-1 && itt.seqEndPos-itt.seqStartPos>=minMatchCharLen) {
+            if (name2!=name1) {
+                for (int i=name1+1; i<=name2; i++) {
+                    cout << seqVector[i].first << endl;
+                }
+                name1 = name2;                            
+            }
+            //cout << ((*(++it)).first < (*(it)).first) << endl;
+            //it--;
+            cout << itt.refStartPos+1 << " " << itt.refStartPos+itt.seqEndPos-itt.seqStartPos << " " << itt.seqStartPos+1 << " " << itt.seqEndPos << endl;
+        }
+    }
+    for (int i=name1+1; i<seqVector.size(); i++) {
+        cout << seqVector[i].first << endl;
+    }
+    
+    
+    
+    //cout << endl << endl;
     return 0;
 }

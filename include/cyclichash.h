@@ -43,14 +43,14 @@ class CyclicHash {
             this->charLen = charLen;
             assert(wordLen%charLen==0);
             assert(charLen%baseCharLen==0);
-            assert(charLen>=sizeof(hashanstype));
+            //assert(charLen>=sizeof(hashanstype));
             this->charsInWord = wordLen/charLen;
             this->baseCharsInWord = wordLen/baseCharLen;
             this->baseCharsInChar = charLen/baseCharLen;
             this->ansLen = sizeof(hashanstype);
             assert(ansLen%baseCharLen==0);
             this->baseCharsInAns = ansLen/baseCharLen;
-            assert(baseCharsInChar%2==0);
+            //assert(baseCharsInChar%2==0);
             this->charsInWord = wordLen/charLen;
             charSpace = 1<<(charLen*8);
             tmp = ippsMalloc_16u(baseCharsInChar+1);
@@ -121,8 +121,9 @@ class CyclicHash {
         }
         
         inline long compareForward(basechartype const *src1, basechartype const *src2, size_t shift, long len) {
-            
-            for (int i=0; i<len; i+=baseCharsInChar) {
+            //cout << "src2+0 = " << src2[0] << endl;
+            //cout << "src1+0 = " << src1[0] << endl;
+            for (int i=0; i<len/4+1; i+=baseCharsInChar) {
                 //cout << "len = " << len << endl;
                 //cout << "kyky0" << endl;
                 //cout << "tmp+0 = " << tmp[i] << endl;
@@ -144,44 +145,44 @@ class CyclicHash {
                         //cout << "src1+0 = " << src1[0] << endl;
                         for (stop=0; tmp[j]!=0; stop+=1,tmp[j]>>=2);
                         //cout << "kuku" << endl;
-                        stop = 8-stop+4*baseCharLen*j+4*baseCharsInChar*i;
+                        stop = 8-stop+4*baseCharLen*j+4*baseCharLen*i;
                         return stop;
                     }
                 }
             }
-            return len*4*baseCharLen;
+            return len;
         }
         
         inline long compareBackward(basechartype const *src1, basechartype const *src2, size_t shift, long len) {
-            
-            for (int i=-baseCharsInChar; -i<len; i-=baseCharsInChar) {
-                //cout << "len = " << len << endl;
-                //cout << "kyky0" << endl;
-                //cout << "tmp+0 = " << tmp[i] << endl;
+            cout << "len = " << len << endl;
+            for (int i=-baseCharsInChar; -i<len/4+1; i-=baseCharsInChar) {
+                
+                cout << "kyky0" << endl;
+                cout << "tmp+0 = " << tmp[0] << endl;
                 deShiftChar(src2+i,tmp,shift);
-                //cout << "tmp+0 = " << tmp[i] << endl;
-                //cout << "src2+i = " << src2[i] << endl;
+                cout << "tmp+0 = " << tmp[0] << endl;
+                cout << "src2+i = " << src2[i] << endl;
                 ippsSwapBytes_16u(src1+i,accum,baseCharsInChar);
                 ippsXor_16u_I(accum,tmp,baseCharsInChar);
-                //cout << "shift = " << shift << endl;
-                //cout << "tmp+0 = " << tmp[0] << endl;
-                //cout << "src2+0 = " << src2[0] << endl;
-                //cout << "src1+0 = " << src1[0] << endl;
-                for (int j=0; j<baseCharsInChar; j++) {
+                cout << "shift = " << shift << endl;
+                cout << "tmp+0 = " << tmp[0] << endl;
+                cout << "src2+i = " << src2[i] << endl;
+                cout << "src1+i = " << src1[i] << endl;
+                for (int j=baseCharsInChar-1; j>=0; j--) {
                     if (tmp[j]!=0) {
                         
                         int stop;
-                        //cout << "shift = " << shift << endl;
-                        //cout << "tmp+0 = " << tmp[0] << endl;
-                        //cout << "src1+0 = " << src1[0] << endl;
-                        for (stop=0; tmp[j]!=0; stop+=1,tmp[j]>>=2);
-                        //cout << "kuku" << endl;
-                        stop = 8-stop+4*baseCharLen*j+4*baseCharsInChar*i;
+                        cout << "shift = " << shift << endl;
+                        cout << "tmp+i = " << tmp[i] << endl;
+                        cout << "src1+i = " << src1[i] << endl;
+                        for (stop=0; tmp[j]!=0; stop+=1,tmp[j]<<=2);
+                        cout << "kuku" << "  j = " << j << "   i=" << i << endl;
+                        stop = stop+4*baseCharLen*j+4*baseCharLen*i;
                         return stop;
                     }
                 }
             }
-            return len*4*baseCharLen;
+            return -len;
         }        
 
         inline void deShiftChar(basechartype const src[],basechartype dest[],size_t shift) {
@@ -208,7 +209,7 @@ class CyclicHash {
         }
 
 
-        hashanstype singleHash(basechartype const src[]) {
+        virtual hashanstype singleHash(basechartype const src[]) {
             //cyclic shifting
             ippsZero_16s((Ipp16s *)accum,baseCharsInChar);
             {
@@ -225,7 +226,7 @@ class CyclicHash {
 
 
 
-        hashanstype singleHash(basechartype const src[], size_t shift) {
+        virtual hashanstype singleHash(basechartype const src[], size_t shift) {
             //cyclic shifting
             ippsZero_16s((Ipp16s *)accum,baseCharsInChar);
             {
@@ -240,7 +241,7 @@ class CyclicHash {
             return collapseChar(accum);
         }
 
-        void moveRight(hashanstype *prev, basechartype const src[]) {
+        virtual void moveRight(hashanstype *prev, basechartype const src[]) {
             // TODO: some random permutation
             cyclicShiftChar(src+baseCharsInWord,tmp,charsInWord);
             ippsXor_16u_I(src, tmp, baseCharsInChar); //TODO: use avx function
@@ -250,7 +251,7 @@ class CyclicHash {
 
         }
 
-        void moveRight(hashanstype *prev, basechartype const src[], size_t shift) {
+        virtual void moveRight(hashanstype *prev, basechartype const src[], size_t shift) {
             // TODO: some random permutation
             cyclicShiftChar(src+baseCharsInWord,tmp,charsInWord,shift);
             deShiftChar(src,accum,shift);
@@ -260,69 +261,34 @@ class CyclicHash {
         }
 
 
-
-    /*CyclicHash(int myn, int mywordsize=19) : hashvalue(0),
-    n(myn), wordsize(mywordsize),
-      hasher( ( 1<<wordsize ) - 1),
-      mask1((static_cast<hashvaluetype>(1)<<(wordsize-1)) -1),
-      myr(n%wordsize),
-      maskn((static_cast<uint32>(1)<<(wordsize-myr)) -1 )
-      {
-       if(static_cast<uint>(wordsize) > 8*sizeof(hashvaluetype)) {
-       cerr<<"Can't create "<<wordsize<<"-bit hash values"<<endl;
-       throw "abord";
-      }
-    }
-
-    inline void fastleftshiftn(hashvaluetype & x) const {
-        x = ((x & maskn) << myr ) | (x >> (wordsize-myr)) ; }
-
-    inline void fastleftshift(hashvaluetype & x, int r) const {
-        r = r % wordsize;
-        const uint32 mask = (static_cast<uint32>(1)<<(wordsize-r)) -1 ;
-        x = ((x & mask) << r ) | (x >> (wordsize-r)) ;
-    }
-
-
-    inline void fastleftshift1(hashvaluetype & x) const {
-        x = ((x & mask1) << 1 ) | (x >> (wordsize-1)) ;
-    }
-
-
-    template<class container>
-    hashvaluetype hash(container & c) {
-     assert(c.size()==static_cast<uint>(n));
-     hashvaluetype answer(0);
-     for(uint k = 0; k<c.size();++k) {
-     fastleftshift(answer, 1) ;
-     answer ^= hasher.hashvalues[c[k]];
-     }
-     return answer;
-    }
-
-
-    inline void update(chartype outchar, chartype inchar) {
-      hashvaluetype z (hasher.hashvalues[outchar]);
-      fastleftshiftn(z);
-      hashvalue = ( ((hashvalue & mask1) << 1 ) | (hashvalue >> (wordsize-1)) )
-      ^ z
-      ^ hasher.hashvalues[inchar];
-    }
+};
 
 
 
-    void eat(chartype inchar) {
-      fastleftshift1(hashvalue);
-      hashvalue ^= hasher.hashvalues[inchar];
-    }
+class TinyHash:public CyclicHash {
+    public:
 
-    uint32 hashvalue;
-    const int n, wordsize;
-    CharacterHash hasher;
-    const hashvaluetype mask1;
-    const int myr;
-    const hashvaluetype maskn;    */
-
+        
+        TinyHash():CyclicHash(baseCharLen,baseCharLen) {
+            
+        }
+    
+        virtual hashanstype singleHash(basechartype const src[], size_t shift) {
+            ippsSwapBytes_16u((Ipp16u *)src, (Ipp16u *)tmp1, baseCharsInChar+1);
+            return (*((unsigned int *)tmp1)<<shift)>>16;
+        }
+        
+        virtual hashanstype singleHash(basechartype const src[]) {
+            cout << "kuku" << endl;
+            ippsSwapBytes_16u((Ipp16u *)src, (Ipp16u *)tmp1, baseCharsInChar+1);
+            return *tmp1;
+        }
+        virtual void moveRight(hashanstype *prev, basechartype const src[]) {            
+            *prev=singleHash(src+1);
+        }
+        virtual void moveRight(hashanstype *prev, basechartype const src[], size_t shift) {            
+            *prev=singleHash(src+1, shift);
+        }
 };
 
 
